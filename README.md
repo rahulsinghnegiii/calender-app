@@ -52,7 +52,30 @@ A Google Calendar-like web application built with React, Redux, and MongoDB. The
    NODE_ENV=development
    ```
 
-4. Start the backend server:
+### MongoDB Atlas Configuration (Recommended for Production)
+
+For production or to use a cloud database instead of local MongoDB:
+
+1. Create a MongoDB Atlas account at [https://www.mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a new cluster (the free tier is sufficient)
+3. Setup database access:
+   - Create a database user with read/write permissions
+   - Note down the username and password
+4. Configure network access:
+   - Add your IP address to the whitelist or use 0.0.0.0/0 for development
+5. Get your connection string:
+   - Click "Connect" on your cluster 
+   - Select "Connect your application"
+   - Copy the connection string
+6. Update your .env file with the MongoDB Atlas connection string:
+   ```
+   PORT=5000
+   MONGODB_URI=mongodb+srv://<username>:<password>@<your-cluster-url>.mongodb.net/calendar-app?retryWrites=true&w=majority
+   NODE_ENV=development
+   ```
+   - Replace `<username>`, `<password>`, and `<your-cluster-url>` with your actual MongoDB Atlas credentials
+
+7. Start the backend server:
    ```
    npm run dev
    ```
