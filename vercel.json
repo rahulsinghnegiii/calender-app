@@ -1,9 +1,12 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "node vercel-build.js",
   "outputDirectory": "dist",
   "installCommand": "npm install --legacy-peer-deps", 
   "framework": "vite",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "env": {
+    "NODE_OPTIONS": "--max-old-space-size=4096"
+  }
 }

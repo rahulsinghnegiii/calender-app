@@ -1,0 +1,1 @@
+web: cd calendar-app/backend && node server.js 

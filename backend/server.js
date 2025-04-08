@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const path = require('path');
 require('dotenv').config();
 const connectDB = require('./config/db');
 
@@ -13,27 +14,34 @@ connectDB();
 // Create Express app
 const app = express();
 
-// CORS configuration
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? [
-        'https://assignment-calender-app.vercel.app', 
-        'https://calendar-app.vercel.app',
-        process.env.FRONTEND_URL, // Allow configurable frontend URL 
-      ] 
-    : 'http://localhost:5173', // Development frontend URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+// Simple CORS configuration - Allow all origins in development mode
+app.use(cors({
+  origin: '*',  // Allow all origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept'],
   credentials: true,
+  preflightContinue: false,
   optionsSuccessStatus: 204
-};
+}));
 
 // Middleware
-app.use(cors(corsOptions));
 app.use(bodyParser.json());
 app.use(express.json());
 
-// Routes
+// API Routes
 app.use('/api/events', eventRoutes);
+
+// Serve frontend static files in production
+if (process.env.NODE_ENV === 'production') {
+  // Set static folder (relative to backend folder)
+  const frontendBuildPath = path.join(__dirname, '../dist');
+  app.use(express.static(frontendBuildPath));
+
+  // Any route that is not an API route should be handled by React
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+  });
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {

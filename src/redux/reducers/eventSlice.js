@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api/events';
+// Using relative path for API URL for same-origin requests
+const API_URL = '/api/events';
 
 // Async thunks for API calls
 export const fetchEvents = createAsyncThunk(

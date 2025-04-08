@@ -49,8 +49,8 @@ const DayView = ({ currentDate, events, onSlotClick, onEventClick }) => {
                     {...provided.droppableProps}
                     className="flex-1 p-1 hover:bg-gray-50"
                     onClick={() => {
-                      const startTime = moment(currentDate).hour(hourNum).minute(0).second(0).toDate();
-                      const endTime = moment(startTime).add(1, 'hour').toDate();
+                      const startTime = moment(currentDate).startOf('day').hour(hourNum).minute(0).second(0).toDate();
+                      const endTime = moment(startTime).clone().add(1, 'hour').toDate();
                       onSlotClick({ date: currentDate, start: startTime, end: endTime });
                     }}
                   >
@@ -168,8 +168,8 @@ const MonthView = ({ currentDate, events, onSlotClick, onEventClick }) => {
                 day.isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-400'
               } ${day.isToday ? 'bg-blue-50' : ''}`}
               onClick={() => {
-                const startTime = moment(day.date).hour(9).minute(0).toDate();
-                const endTime = moment(startTime).add(1, 'hour').toDate();
+                const startTime = moment(day.date).hour(9).minute(0).second(0).toDate();
+                const endTime = moment(startTime).clone().add(1, 'hour').toDate();
                 onSlotClick({ date: day.date, start: startTime, end: endTime });
               }}
             >

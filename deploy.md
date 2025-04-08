@@ -75,3 +75,4 @@ If you experience issues with the deployment:
 - The free tier of Render will spin down after periods of inactivity, causing the first request to be slow
 - Consider upgrading to a paid plan for production use
 - Remember to secure your application before using it in production
+
