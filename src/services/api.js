@@ -1,85 +1,66 @@
 import axios from 'axios';
 
-// Use environment variable for API URL or fallback to relative path
+// Get API URL from environment variables or default to relative path
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+console.log('API Service using base URL:', API_URL);
 
 // Create axios instance with base URL
 const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+    baseURL: API_URL,
+    timeout: 10000, // 10 seconds timeout
 });
 
-// Add request interceptor for debugging
+// Request interceptor for debugging
 api.interceptors.request.use(
-  (config) => {
-    console.log('API Request:', config.url);
-    return config;
-  },
-  (error) => {
-    console.error('API Request Error:', error);
-    return Promise.reject(error);
-  }
+    config => {
+        console.log(`🚀 API Request: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`, config.data || '');
+        return config;
+    },
+    error => {
+        console.error('❌ API Request Error:', error);
+        return Promise.reject(error);
+    }
 );
 
-// Add response interceptor for debugging
+// Response interceptor for debugging
 api.interceptors.response.use(
-  (response) => {
-    console.log('API Response:', response.status);
-    return response;
-  },
-  (error) => {
-    console.error('API Response Error:', error.response || error);
-    return Promise.reject(error);
-  }
+    response => {
+        console.log(`✅ API Response: ${response.status}`, response.data);
+        return response;
+    },
+    error => {
+        console.error('❌ API Response Error:', error.response ? error.response.data : error.message);
+        return Promise.reject(error);
+    }
 );
 
-// Event service
+// Event service with API methods
 export const eventService = {
-  // Get all events
-  getEvents: async (dateRange) => {
-    try {
-      let url = '/events';
-      if (dateRange) {
-        url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
-      }
-      const response = await api.get(url);
-      return response.data;
-    } catch (error) {
-      throw error;
+    // Get all events (with optional date range filter)
+    getEvents: async (dateRange) => {
+        let url = '/events';
+        if (dateRange) {
+            url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
+        }
+        console.log('Fetching events from complete URL:', `${API_URL}${url}`);
+        return api.get(url);
+    },
+    
+    // Create a new event
+    createEvent: async (eventData) => {
+        return api.post('/events', eventData);
+    },
+    
+    // Update an existing event
+    updateEvent: async (id, eventData) => {
+        return api.put(`/events/${id}`, eventData);
+    },
+    
+    // Delete an event
+    deleteEvent: async (id) => {
+        return api.delete(`/events/${id}`);
     }
-  },
-
-  // Create a new event
-  createEvent: async (eventData) => {
-    try {
-      const response = await api.post('/events', eventData);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  // Update an event
-  updateEvent: async (id, eventData) => {
-    try {
-      const response = await api.put(`/events/${id}`, eventData);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  // Delete an event
-  deleteEvent: async (id) => {
-    try {
-      const response = await api.delete(`/events/${id}`);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
 };
 
 export default api; 

@@ -28,4 +28,4 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://calendar-app-backend.onrender.com/api
-    plan: free 
+    # plan: free - removed as it's no longer a valid option 

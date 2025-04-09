@@ -1,20 +1,15 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import { eventService } from '../../services/api';
 
-// Use the environment variable for API URL or fallback to relative path
-const API_URL = import.meta.env.VITE_API_URL || '/api/events';
+// For logging to help debug
+console.log('Event Slice initialized');
 
 // Async thunks for API calls
 export const fetchEvents = createAsyncThunk(
   'events/fetchEvents',
   async (dateRange, { rejectWithValue }) => {
     try {
-      let url = API_URL;
-      // Add date range filtering if provided
-      if (dateRange) {
-        url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
-      }
-      const response = await axios.get(url);
+      const response = await eventService.getEvents(dateRange);
       return response.data.data;
     } catch (error) {
       console.error('Error fetching events:', error);
@@ -27,10 +22,10 @@ export const createEvent = createAsyncThunk(
   'events/createEvent',
   async (eventData, { rejectWithValue }) => {
     try {
-      const response = await axios.post(API_URL, eventData);
+      const response = await eventService.createEvent(eventData);
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response.data);
+      return rejectWithValue(error.response?.data || { error: 'Failed to create event' });
     }
   }
 );
@@ -39,10 +34,10 @@ export const updateEvent = createAsyncThunk(
   'events/updateEvent',
   async ({ id, eventData }, { rejectWithValue }) => {
     try {
-      const response = await axios.put(`${API_URL}/${id}`, eventData);
+      const response = await eventService.updateEvent(id, eventData);
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response.data);
+      return rejectWithValue(error.response?.data || { error: 'Failed to update event' });
     }
   }
 );
@@ -51,10 +46,10 @@ export const deleteEvent = createAsyncThunk(
   'events/deleteEvent',
   async (id, { rejectWithValue }) => {
     try {
-      await axios.delete(`${API_URL}/${id}`);
+      await eventService.deleteEvent(id);
       return id;
     } catch (error) {
-      return rejectWithValue(error.response.data);
+      return rejectWithValue(error.response?.data || { error: 'Failed to delete event' });
     }
   }
 );
