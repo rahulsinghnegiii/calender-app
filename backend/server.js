@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 const connectDB = require('./config/db');
 
@@ -31,16 +32,39 @@ app.use(express.json());
 // API Routes
 app.use('/api/events', eventRoutes);
 
-// Serve frontend static files in production
-if (process.env.NODE_ENV === 'production') {
-  // Set static folder (relative to backend folder)
-  const frontendBuildPath = path.join(__dirname, '../dist');
-  app.use(express.static(frontendBuildPath));
-
-  // Any route that is not an API route should be handled by React
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+// Add root route to handle basic API requests
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Calendar API is running',
+    endpoints: {
+      events: '/api/events'
+    }
   });
+});
+
+// Serve frontend static files only if they exist
+if (process.env.NODE_ENV === 'production') {
+  // Check if the dist directory exists
+  const frontendBuildPath = path.join(__dirname, '../dist');
+  
+  if (fs.existsSync(frontendBuildPath) && fs.existsSync(path.join(frontendBuildPath, 'index.html'))) {
+    console.log('Frontend build directory found, serving static files');
+    // Set static folder
+    app.use(express.static(frontendBuildPath));
+
+    // Any route that is not an API route should be handled by React
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(frontendBuildPath, 'index.html'));
+    });
+  } else {
+    console.log('Frontend build directory not found, running in API-only mode');
+    // Return JSON for any route that's not an API route
+    app.get('*', (req, res) => {
+      res.status(404).json({
+        message: 'Not Found - API endpoints start with /api'
+      });
+    });
+  }
 }
 
 // Error handling middleware
