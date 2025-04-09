@@ -15,15 +15,52 @@ connectDB();
 // Create Express app
 const app = express();
 
-// Simple CORS configuration - Allow all origins in development mode
+// Improved CORS configuration
+const allowedOrigins = [
+  // Local development
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:5000',
+  // Render domains
+  'https://calendar-app-frontend-qscz.onrender.com',
+  'https://calendar-app-backend.onrender.com',
+  // Allow requests from any subdomain of onrender.com
+  /\.onrender\.com$/
+];
+
 app.use(cors({
-  origin: '*',  // Allow all origins
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    
+    // Check if the origin is allowed
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
+      return allowedOrigin === origin;
+    });
+    
+    if (isAllowed) {
+      console.log('CORS: Allowed origin:', origin);
+      return callback(null, true);
+    } else {
+      console.error('CORS: Blocked origin:', origin);
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept'],
   credentials: true,
   preflightContinue: false,
   optionsSuccessStatus: 204
 }));
+
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl} - Origin: ${req.headers.origin || 'unknown'}`);
+  next();
+});
 
 // Middleware
 app.use(bodyParser.json());
@@ -69,10 +106,20 @@ if (process.env.NODE_ENV === 'production') {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  console.error(`Error: ${err.message}`);
   console.error(err.stack);
+  
+  // Send appropriate error response
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      message: 'CORS error: Origin not allowed',
+      error: process.env.NODE_ENV === 'production' ? {} : err.message
+    });
+  }
+  
   res.status(500).json({
     message: 'Something went wrong!',
-    error: process.env.NODE_ENV === 'production' ? {} : err
+    error: process.env.NODE_ENV === 'production' ? {} : err.message
   });
 });
 
@@ -81,4 +128,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`API URL: http://localhost:${PORT}/api`);
 }); 
