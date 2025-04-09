@@ -8,7 +8,7 @@ console.log('API Service using base URL:', API_URL);
 // Create axios instance with base URL
 const api = axios.create({
     baseURL: API_URL,
-    timeout: 10000, // 10 seconds timeout
+    timeout: 30000, // 30 seconds timeout (increased from 10 seconds)
 });
 
 // Request interceptor for debugging
@@ -30,7 +30,14 @@ api.interceptors.response.use(
         return response;
     },
     error => {
-        console.error('❌ API Response Error:', error.response ? error.response.data : error.message);
+        // More detailed error logging
+        if (error.code === 'ECONNABORTED') {
+            console.error('❌ API Timeout Error: Request took too long to complete');
+        } else if (!error.response) {
+            console.error('❌ API Network Error: Cannot connect to the server. Is the backend running?', error.message);
+        } else {
+            console.error('❌ API Response Error:', error.response ? error.response.data : error.message);
+        }
         return Promise.reject(error);
     }
 );
@@ -44,22 +51,42 @@ export const eventService = {
             url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
         }
         console.log('Fetching events from complete URL:', `${API_URL}${url}`);
-        return api.get(url);
+        try {
+            return await api.get(url);
+        } catch (error) {
+            console.error('Error fetching events:', error);
+            throw error;
+        }
     },
     
     // Create a new event
     createEvent: async (eventData) => {
-        return api.post('/events', eventData);
+        try {
+            return await api.post('/events', eventData);
+        } catch (error) {
+            console.error('Error creating event:', error);
+            throw error;
+        }
     },
     
     // Update an existing event
     updateEvent: async (id, eventData) => {
-        return api.put(`/events/${id}`, eventData);
+        try {
+            return await api.put(`/events/${id}`, eventData);
+        } catch (error) {
+            console.error('Error updating event:', error);
+            throw error;
+        }
     },
     
     // Delete an event
     deleteEvent: async (id) => {
-        return api.delete(`/events/${id}`);
+        try {
+            return await api.delete(`/events/${id}`);
+        } catch (error) {
+            console.error('Error deleting event:', error);
+            throw error;
+        }
     }
 };
 
