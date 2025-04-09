@@ -406,7 +406,14 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
 
   // Handle click on a time slot to create a new event
   const handleSlotClick = (slotInfo) => {
-    onModalOpen(slotInfo, null);
+    // Ensure dates are in proper ISO format
+    const formattedSlot = {
+      ...slotInfo,
+      date: slotInfo.date ? moment(slotInfo.date).format('YYYY-MM-DD') : moment().format('YYYY-MM-DD'),
+      start: slotInfo.start ? moment(slotInfo.start).toDate() : null,
+      end: slotInfo.end ? moment(slotInfo.end).toDate() : null
+    };
+    onModalOpen(formattedSlot, null);
   };
 
   // Handle click on an event to edit it
@@ -571,8 +578,9 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
             {...provided.droppableProps}
             className="h-full"
             onClick={() => handleSlotClick({
-              start: moment(`${moment(day.date).format('YYYY-MM-DD')} ${hourNum}:00`).toDate(),
-              end: moment(`${moment(day.date).format('YYYY-MM-DD')} ${hourNum}:00`).add(1, 'hour').toDate()
+              date: moment(day.date).format('YYYY-MM-DD'),
+              start: moment(day.date).hour(hourNum).minute(0).second(0).toDate(),
+              end: moment(day.date).hour(hourNum).minute(0).second(0).add(1, 'hour').toDate()
             })}
           >
             {filteredDayEvents.map((event, index) => (

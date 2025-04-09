@@ -54,46 +54,75 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
   // Handle form submission
   const onSubmit = (data) => {
     setIsSubmitting(true);
+    console.log('Form data:', data);
     
-    // Combine date and time into Date objects
-    const startDateTime = combineDateAndTime(data.date, data.startTime);
-    const endDateTime = combineDateAndTime(data.date, data.endTime);
-    
-    const eventData = {
-      title: data.title,
-      category: data.category,
-      date: moment(data.date).toDate(),
-      startTime: startDateTime,
-      endTime: endDateTime
-    };
-    
-    if (selectedEvent) {
-      // Update existing event
-      dispatch(updateEvent({ 
-        id: selectedEvent.id,
-        eventData
-      }))
-        .unwrap()
-        .then(() => {
-          setIsSubmitting(false);
-          onClose();
-        })
-        .catch((error) => {
-          console.error('Failed to update event:', error);
-          setIsSubmitting(false);
-        });
-    } else {
-      // Create new event
-      dispatch(createEvent(eventData))
-        .unwrap()
-        .then(() => {
-          setIsSubmitting(false);
-          onClose();
-        })
-        .catch((error) => {
-          console.error('Failed to create event:', error);
-          setIsSubmitting(false);
-        });
+    try {
+      // Create properly formatted ISO date strings
+      const dateStr = data.date; // Already in YYYY-MM-DD format
+      const startTimeStr = data.startTime; // In HH:MM format
+      const endTimeStr = data.endTime; // In HH:MM format
+      
+      // Parse dates correctly using ISO format with T separator
+      const startDateTime = new Date(`${dateStr}T${startTimeStr}:00`);
+      const endDateTime = new Date(`${dateStr}T${endTimeStr}:00`);
+      
+      // Create a clean date without time component
+      const cleanDate = new Date(`${dateStr}T00:00:00`);
+      
+      console.log('Parsed dates:', {
+        date: cleanDate,
+        startTime: startDateTime,
+        endTime: endDateTime
+      });
+      
+      // Validate dates are valid
+      if (isNaN(cleanDate) || isNaN(startDateTime) || isNaN(endDateTime)) {
+        console.error('Invalid date format');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      const eventData = {
+        title: data.title,
+        category: data.category,
+        date: cleanDate.toISOString(),
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString()
+      };
+      
+      console.log('Submitting event data:', eventData);
+      
+      if (selectedEvent) {
+        // Update existing event
+        dispatch(updateEvent({ 
+          id: selectedEvent.id,
+          eventData
+        }))
+          .unwrap()
+          .then(() => {
+            setIsSubmitting(false);
+            onClose();
+          })
+          .catch((error) => {
+            console.error('Failed to update event:', error);
+            setIsSubmitting(false);
+          });
+      } else {
+        // Create new event
+        dispatch(createEvent(eventData))
+          .unwrap()
+          .then(() => {
+            setIsSubmitting(false);
+            onClose();
+          })
+          .catch((error) => {
+            console.error('Failed to create event:', error);
+            setIsSubmitting(false);
+          });
+      }
+    } catch (error) {
+      console.error('Error processing form data:', error);
+      setIsSubmitting(false);
     }
   };
 

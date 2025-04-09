@@ -28,12 +28,54 @@ exports.getEvents = async (req, res, next) => {
 // POST /api/events
 exports.createEvent = async (req, res, next) => {
   try {
-    const event = await Event.create(req.body);
-    res.status(201).json({
-      success: true,
-      data: event
-    });
+    console.log('Create event request body:', req.body);
+    
+    // Validate that required date fields are present and valid
+    const { date, startTime, endTime } = req.body;
+    
+    if (!date || !startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        error: 'Date, start time, and end time are required'
+      });
+    }
+    
+    // Try to parse dates to ensure they're valid
+    try {
+      const parsedDate = new Date(date);
+      const parsedStartTime = new Date(startTime);
+      const parsedEndTime = new Date(endTime);
+      
+      // Check if any of the dates are invalid
+      if (isNaN(parsedDate.getTime()) || isNaN(parsedStartTime.getTime()) || isNaN(parsedEndTime.getTime())) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid date format provided'
+        });
+      }
+      
+      // Use the parsed dates in the event object
+      const eventData = {
+        ...req.body,
+        date: parsedDate,
+        startTime: parsedStartTime,
+        endTime: parsedEndTime
+      };
+      
+      const event = await Event.create(eventData);
+      res.status(201).json({
+        success: true,
+        data: event
+      });
+    } catch (parseError) {
+      console.error('Date parsing error:', parseError);
+      return res.status(400).json({
+        success: false,
+        error: 'Could not parse date/time values'
+      });
+    }
   } catch (error) {
+    console.error('Create event error:', error);
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(val => val.message);
       return res.status(400).json({

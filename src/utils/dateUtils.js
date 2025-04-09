@@ -36,7 +36,8 @@ export const getWeekRange = (date) => {
  * @returns {Date} Combined date and time as Date object
  */
 export const combineDateAndTime = (dateStr, timeStr) => {
-  return moment(`${dateStr} ${timeStr}`).toDate();
+  // Use ISO format with the T separator between date and time
+  return moment(`${dateStr}T${timeStr}`).toDate();
 };
 
 /**
