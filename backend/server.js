@@ -15,6 +15,16 @@ connectDB();
 // Create Express app
 const app = express();
 
+// Debug endpoint to check server status without any middleware interference
+app.get('/api/debug/status', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Debug endpoint is working',
+    timestamp: new Date().toISOString(),
+    headers: req.headers
+  });
+});
+
 // Improved CORS configuration
 const allowedOrigins = [
   // Local development
@@ -25,30 +35,14 @@ const allowedOrigins = [
   'https://calendar-app-frontend-qscz.onrender.com',
   'https://calendar-app-backend.onrender.com',
   // Allow requests from any subdomain of onrender.com
-  /\.onrender\.com$/
+  /\.onrender\.com$/,
+  // Allow all origins in development
+  '*'
 ];
 
+// Apply CORS middleware with more permissive settings to overcome Render issues
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, Postman)
-    if (!origin) return callback(null, true);
-    
-    // Check if the origin is allowed
-    const isAllowed = allowedOrigins.some(allowedOrigin => {
-      if (allowedOrigin instanceof RegExp) {
-        return allowedOrigin.test(origin);
-      }
-      return allowedOrigin === origin;
-    });
-    
-    if (isAllowed) {
-      console.log('CORS: Allowed origin:', origin);
-      return callback(null, true);
-    } else {
-      console.error('CORS: Blocked origin:', origin);
-      return callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: '*', // Temporarily allow all origins to debug
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept'],
   credentials: true,
@@ -59,12 +53,35 @@ app.use(cors({
 // Add request logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl} - Origin: ${req.headers.origin || 'unknown'}`);
+  console.log('Request headers:', JSON.stringify(req.headers));
   next();
 });
 
 // Middleware
 app.use(bodyParser.json());
 app.use(express.json());
+
+// Diagnostic middleware to check if we reach this point for API requests
+app.use('/api', (req, res, next) => {
+  console.log(`API request received: ${req.method} ${req.originalUrl}`);
+  // Continue processing the request
+  next();
+});
+
+// Create diagnostic events endpoint to bypass any potential auth middleware
+app.get('/api/debug/events', async (req, res) => {
+  try {
+    // Return an empty array of events for diagnostic purposes
+    res.status(200).json({
+      success: true,
+      message: 'Debug events endpoint',
+      data: []
+    });
+  } catch (error) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // API Routes
 app.use('/api/events', eventRoutes);
@@ -74,7 +91,8 @@ app.get('/', (req, res) => {
   res.json({
     message: 'Calendar API is running',
     endpoints: {
-      events: '/api/events'
+      events: '/api/events',
+      debug: '/api/debug/status'
     }
   });
 });
