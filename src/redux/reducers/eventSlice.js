@@ -1,8 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-// Using relative path for API URL for same-origin requests
-const API_URL = '/api/events';
+// Use the environment variable for API URL or fallback to relative path
+const API_URL = import.meta.env.VITE_API_URL || '/api/events';
 
 // Async thunks for API calls
 export const fetchEvents = createAsyncThunk(
@@ -17,7 +17,8 @@ export const fetchEvents = createAsyncThunk(
       const response = await axios.get(url);
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response.data);
+      console.error('Error fetching events:', error);
+      return rejectWithValue(error.response?.data || { error: 'Network error' });
     }
   }
 );

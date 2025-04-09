@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Use relative path for API URL in production, or environment variable with fallback
-const API_URL = '/api';
+// Use environment variable for API URL or fallback to relative path
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 // Create axios instance with base URL
 const api = axios.create({
@@ -10,6 +10,30 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Add request interceptor for debugging
+api.interceptors.request.use(
+  (config) => {
+    console.log('API Request:', config.url);
+    return config;
+  },
+  (error) => {
+    console.error('API Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for debugging
+api.interceptors.response.use(
+  (response) => {
+    console.log('API Response:', response.status);
+    return response;
+  },
+  (error) => {
+    console.error('API Response Error:', error.response || error);
+    return Promise.reject(error);
+  }
+);
 
 // Event service
 export const eventService = {
