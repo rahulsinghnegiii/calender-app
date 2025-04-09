@@ -30,6 +30,6 @@ services:
         fromService:
           name: calendar-app-backend
           type: web
-          property: url
-        append: /api
+          property: host
+        value: https://$$host/api
     plan: free 
