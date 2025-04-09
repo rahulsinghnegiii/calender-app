@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: calendar-app
+    name: calendar-app-backend
     env: node
     region: oregon # You can change this to the region closest to your users
     buildCommand: npm run render-build
-    startCommand: cd calendar-app/backend && node server.js
+    startCommand: cd backend && node server.js
     envVars:
       - key: NODE_ENV
         value: production

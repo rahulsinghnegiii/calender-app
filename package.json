@@ -8,6 +8,7 @@
     "server": "cd backend && npm run dev",
     "start": "concurrently \"npm run dev\" \"npm run server\"",
     "build": "vite build",
+    "render-build": "node render-build.js",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
