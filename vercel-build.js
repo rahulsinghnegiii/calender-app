@@ -1,6 +1,12 @@
 // This is a custom build script for Vercel
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
+
+// Get current directory in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Function to modify package.json to ensure React 18 is used
 function ensureReact18() {
@@ -34,7 +40,6 @@ function ensureReact18() {
 ensureReact18();
 
 // Execute normal build process
-const { execSync } = require('child_process');
 try {
   execSync('npm run build', { stdio: 'inherit' });
 } catch (error) {
