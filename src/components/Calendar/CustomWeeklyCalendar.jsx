@@ -13,9 +13,9 @@ const DayView = ({ currentDate, events, onSlotClick, onEventClick }) => {
   ];
   
   // Filter events for the current day
-  const dayEvents = events.filter(event => 
-    moment(event.date).isSame(moment(currentDate), 'day')
-  );
+  const dayEvents = events && Array.isArray(events) 
+    ? events.filter(event => moment(event.date).isSame(moment(currentDate), 'day'))
+    : [];
   
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
@@ -29,10 +29,12 @@ const DayView = ({ currentDate, events, onSlotClick, onEventClick }) => {
           const hourNum = parseInt(hour.split(':')[0]);
             
           // Find events for this hour
-          const hourEvents = dayEvents.filter(event => {
-            const eventHour = moment(event.startTime).hour();
-            return eventHour === hourNum;
-          });
+          const hourEvents = dayEvents && Array.isArray(dayEvents) 
+            ? dayEvents.filter(event => {
+                const eventHour = moment(event.startTime).hour();
+                return eventHour === hourNum;
+              })
+            : [];
           
           // Create a unique droppable ID for the day view
           const droppableId = `DAY-${moment(currentDate).format('YYYY-MM-DD')}-${hourNum}`;
@@ -154,9 +156,9 @@ const MonthView = ({ currentDate, events, onSlotClick, onEventClick }) => {
       <div className="grid grid-cols-7 flex-1 overflow-y-auto">
         {days.map((day, index) => {
           // Filter events for this day
-          const dayEvents = events.filter(event => 
-            moment(event.date).isSame(moment(day.date), 'day')
-          );
+          const dayEvents = events && Array.isArray(events) 
+            ? events.filter(event => moment(event.date).isSame(moment(day.date), 'day'))
+            : [];
           
           // Create a unique droppable ID for this day in the month view
           const droppableId = `MONTH-${moment(day.date).format('YYYY-MM-DD')}`;
@@ -266,7 +268,7 @@ const YearView = ({ currentDate, onDateChange }) => {
 // Main calendar component
 const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentView, onViewChange }) => {
   const dispatch = useDispatch();
-  const events = useSelector((state) => state.events.events);
+  const events = useSelector((state) => state.events.events) || [];
   const isLoading = useSelector((state) => state.events.isLoading);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredEvents, setFilteredEvents] = useState([]);
@@ -302,18 +304,20 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
   // Filter events when search term or events change
   useEffect(() => {
     if (!searchTerm.trim()) {
-      setFilteredEvents(events);
+      setFilteredEvents(events || []);
       return;
     }
     
     const term = searchTerm.toLowerCase();
-    const filtered = events.filter(event => {
-      return (
-        event.title.toLowerCase().includes(term) ||
-        event.category.toLowerCase().includes(term) ||
-        moment(event.startTime).format('YYYY-MM-DD HH:mm').includes(term)
-      );
-    });
+    const filtered = events && Array.isArray(events) 
+      ? events.filter(event => {
+          return (
+            event.title.toLowerCase().includes(term) ||
+            event.category.toLowerCase().includes(term) ||
+            moment(event.startTime).format('YYYY-MM-DD HH:mm').includes(term)
+          );
+        })
+      : [];
     
     setFilteredEvents(filtered);
   }, [searchTerm, events]);
@@ -425,7 +429,7 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
 
   // Handle drag end for events (applies to all views)
   const handleDragEnd = (result) => {
-    if (!result.destination) return;
+    if (!result.destination || !events || !Array.isArray(events)) return;
     
     const { source, destination } = result;
     const eventId = result.draggableId;
@@ -448,10 +452,12 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
         sourceHourNum = parseInt(parts[4]);
         
         // Find all events for this day and hour
-        const sourceEvents = events.filter(e => {
-          return moment(e.date).isSame(moment(sourceDate), 'day') && 
-                 moment(e.startTime).hour() === sourceHourNum;
-        });
+        const sourceEvents = events && Array.isArray(events) 
+          ? events.filter(e => {
+              return moment(e.date).isSame(moment(sourceDate), 'day') && 
+                     moment(e.startTime).hour() === sourceHourNum;
+            })
+          : [];
         
         event = sourceEvents[source.index];
       } else if (sourceId.startsWith('MONTH-')) {
@@ -460,9 +466,9 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
         sourceDate = moment(`${parts[1]}-${parts[2]}-${parts[3]}`).toDate();
         
         // Find all events for this day
-        const sourceEvents = events.filter(e => 
-          moment(e.date).isSame(moment(sourceDate), 'day')
-        );
+        const sourceEvents = events && Array.isArray(events) 
+          ? events.filter(e => moment(e.date).isSame(moment(sourceDate), 'day'))
+          : [];
         
         event = sourceEvents[source.index];
       } else if (sourceId.includes('-')) {
@@ -474,11 +480,13 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
         if (!sourceDate) return;
         
         // Find events for this day and hour
-        const sourceEvents = events.filter(e => {
-          const eventDay = moment(e.date).format('ddd').toUpperCase();
-          const eventHour = moment(e.startTime).hour();
-          return eventDay === sourceDay && eventHour === sourceHourNum;
-        });
+        const sourceEvents = events && Array.isArray(events) 
+          ? events.filter(e => {
+              const eventDay = moment(e.date).format('ddd').toUpperCase();
+              const eventHour = moment(e.startTime).hour();
+              return eventDay === sourceDay && eventHour === sourceHourNum;
+            })
+          : [];
         
         event = sourceEvents[source.index];
       }
