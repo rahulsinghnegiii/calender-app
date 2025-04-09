@@ -1,5 +1,5 @@
 // Custom build script for Render deployment
-const { execSync } = require('child_process');
+import { execSync } from 'child_process';
 
 console.log('Starting Render build process...');
 
