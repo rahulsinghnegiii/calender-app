@@ -27,9 +27,5 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          name: calendar-app-backend
-          type: web
-          property: host
-        value: https://$$host/api
+        value: https://calendar-app-backend.onrender.com/api
     plan: free 
