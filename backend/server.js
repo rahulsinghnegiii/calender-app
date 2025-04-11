@@ -8,6 +8,8 @@ const connectDB = require('./config/db');
 
 // Import routes
 const eventRoutes = require('./routes/eventRoutes');
+const goalRoutes = require('./routes/goalRoutes');
+const taskRoutes = require('./routes/taskRoutes');
 
 // Connect to Database
 connectDB();
@@ -43,7 +45,7 @@ const allowedOrigins = [
 // Apply CORS middleware with more permissive settings to overcome Render issues
 app.use(cors({
   origin: '*', // Temporarily allow all origins to debug
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept'],
   credentials: true,
   preflightContinue: false,
@@ -85,6 +87,8 @@ app.get('/api/debug/events', async (req, res) => {
 
 // API Routes
 app.use('/api/events', eventRoutes);
+app.use('/api/goals', goalRoutes);
+app.use('/api/tasks', taskRoutes);
 
 // Add root route to handle basic API requests
 app.get('/', (req, res) => {
@@ -92,6 +96,8 @@ app.get('/', (req, res) => {
     message: 'Calendar API is running',
     endpoints: {
       events: '/api/events',
+      goals: '/api/goals',
+      tasks: '/api/tasks',
       debug: '/api/debug/status'
     }
   });

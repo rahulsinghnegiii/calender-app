@@ -1,18 +1,26 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
-import { DndProvider } from 'react-dnd'
-import { HTML5Backend } from 'react-dnd-html5-backend'
 import store from './redux/store'
 import './index.css'
 import App from './App.jsx'
 
+/**
+ * Create a wrapper for the Provider to avoid defaultProps warnings
+ * Using a function declaration instead of arrow function
+ */
+function SafeProvider({ children, store }) {
+  return (
+    <Provider store={store}>
+      {children}
+    </Provider>
+  );
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <Provider store={store}>
-      <DndProvider backend={HTML5Backend}>
-        <App />
-      </DndProvider>
-    </Provider>
+    <SafeProvider store={store}>
+      <App />
+    </SafeProvider>
   </StrictMode>,
 )

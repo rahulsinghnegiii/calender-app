@@ -1,16 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchEvents, updateEvent } from '../../redux/reducers/eventSlice';
 import { getWeekRange, calculateNewTimesAfterDrag, formatTime, getDayName } from '../../utils/dateUtils';
 import moment from 'moment';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, Draggable, DragDropWrapper } from '../DndContext';
+import ResizableEvent from './ResizableEvent';
 
 // Component for displaying the day view
 const DayView = ({ currentDate, events, onSlotClick, onEventClick }) => {
-  const hours = [
-    '00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
-    '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
-  ];
+  // Generate time slots for every 15 minutes instead of hourly
+  const generateTimeSlots = () => {
+    const slots = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const hourFormatted = hour.toString().padStart(2, '0');
+        const minuteFormatted = minute.toString().padStart(2, '0');
+        // Convert to moment object for consistent formatting
+        const timeObj = moment().hour(hour).minute(minute).second(0);
+        
+        // Add metadata to each slot for better rendering
+        slots.push({
+          // Format in both 12-hour and 24-hour for flexibility
+          label: `${hourFormatted}:${minuteFormatted}`,
+          displayLabel: timeObj.format('h:mm A'), // 12-hour with AM/PM
+          hour,
+          minute,
+          isFullHour: minute === 0,
+          isHalfHour: minute === 30,
+          isQuarterHour: minute === 15 || minute === 45
+        });
+      }
+    }
+    return slots;
+  };
+
+  const timeSlots = generateTimeSlots();
   
   // Filter events for the current day
   const dayEvents = events && Array.isArray(events) 
@@ -24,39 +48,84 @@ const DayView = ({ currentDate, events, onSlotClick, onEventClick }) => {
       </div>
       
       <div className="flex-1 overflow-y-auto">
-        {hours.map((hour, index) => {
-          // Extract hour as a number (0-23)
-          const hourNum = parseInt(hour.split(':')[0]);
-            
-          // Find events for this hour
-          const hourEvents = dayEvents && Array.isArray(dayEvents) 
+        {timeSlots.map((timeSlot, index) => {
+          // Extract hour and minute as numbers
+          const hour = timeSlot.hour;
+          const minute = timeSlot.minute;
+          
+          // Show full hour labels, but smaller height for 15/30/45-minute slots
+          // h-16 = 64px (full hour), h-4 = 16px (15-min slot)
+          // These heights MUST match the values used in ResizableEvent.jsx for accurate event sizing
+          const isFullHour = timeSlot.isFullHour;
+          const isHalfHour = timeSlot.isHalfHour;
+          const isQuarterHour = timeSlot.isQuarterHour;
+          const slotHeight = isFullHour ? 'h-16' : 'h-4';
+          
+          // Find events that start at this time slot
+          const slotEvents = dayEvents && Array.isArray(dayEvents) 
             ? dayEvents.filter(event => {
                 const eventHour = moment(event.startTime).hour();
-                return eventHour === hourNum;
+                const eventMinute = moment(event.startTime).minute();
+                return eventHour === hour && eventMinute === minute;
               })
             : [];
           
           // Create a unique droppable ID for the day view
-          const droppableId = `DAY-${moment(currentDate).format('YYYY-MM-DD')}-${hourNum}`;
+          const droppableId = `DAY-${moment(currentDate).format('YYYY-MM-DD')}-${hour}-${minute}`;
           
           return (
-            <div key={index} className="flex border-b h-16">
-              <div className="w-16 p-2 text-right text-xs text-gray-500 border-r sticky left-0 bg-white">
-                {hour}
-              </div>
+            <div key={index} className={`flex border-b ${slotHeight} ${
+              isFullHour ? 'border-gray-300' : 
+              isHalfHour ? 'border-dashed border-gray-300' : 
+              'border-dotted border-gray-200'}`}>
+              {isFullHour && (
+                <div className="w-20 p-2 text-right text-xs text-gray-700 font-semibold border-r sticky left-0 bg-white">
+                  {timeSlot.displayLabel}
+                </div>
+              )}
+              {isHalfHour && (
+                <div className="w-20 py-1 text-right text-[10px] text-gray-600 border-r sticky left-0 bg-white">
+                  {timeSlot.displayLabel}
+                </div>
+              )}
+              {isQuarterHour && (
+                <div className="w-20 py-1 text-right text-[9px] text-gray-500 border-r sticky left-0 bg-white">
+                  {timeSlot.displayLabel}
+                </div>
+              )}
+              {!isFullHour && !isHalfHour && !isQuarterHour && (
+                <div className="w-20 py-1 text-right text-[9px] text-gray-400 border-r sticky left-0 bg-white">
+                  {timeSlot.displayLabel}
+                </div>
+              )}
               <Droppable droppableId={droppableId} isDropDisabled={false}>
                 {(provided) => (
                   <div 
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className="flex-1 p-1 hover:bg-gray-50"
-                    onClick={() => {
-                      const startTime = moment(currentDate).startOf('day').hour(hourNum).minute(0).second(0).toDate();
-                      const endTime = moment(startTime).clone().add(1, 'hour').toDate();
+                    className={`flex-1 p-1 hover:bg-blue-50 relative ${
+                      isFullHour ? 'hover:before:content-["Click_to_create_event"] hover:before:absolute hover:before:text-[10px] hover:before:text-blue-500 hover:before:font-medium hover:before:right-2 hover:before:top-1' : 
+                      isHalfHour ? 'hover:before:content-["' + timeSlot.displayLabel + '"] hover:before:absolute hover:before:text-[9px] hover:before:text-blue-500 hover:before:font-medium hover:before:right-2 hover:before:top-0' : 
+                      ''
+                    }`}
+                    onClick={(e) => {
+                      // Check if any resize operation is in progress
+                      const isResizing = document.querySelector('.z-10.shadow-lg') !== null;
+                      
+                      // Don't open modal if resizing is in progress
+                      if (isResizing) {
+                        e.stopPropagation();
+                        return;
+                      }
+                      
+                      const startTime = moment(currentDate).hour(hour).minute(minute).second(0).toDate();
+                      // Create a default duration of 30 minutes for full hour and half hour slots, 15 minutes for others
+                      const duration = isFullHour || isHalfHour ? 30 : 15;
+                      const endTime = moment(startTime).clone().add(duration, 'minutes').toDate();
                       onSlotClick({ date: currentDate, start: startTime, end: endTime });
                     }}
                   >
-                    {hourEvents.map((event, eventIndex) => (
+                    {slotEvents.map((event, eventIndex) => (
                       <Draggable 
                         key={event._id || `day-event-${eventIndex}`} 
                         draggableId={event._id || `day-event-${eventIndex}`} 
@@ -64,21 +133,13 @@ const DayView = ({ currentDate, events, onSlotClick, onEventClick }) => {
                         isDragDisabled={false}
                       >
                         {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            className={`${getEventColorClass(event.category)} p-1 rounded text-xs mb-1 cursor-pointer overflow-hidden whitespace-nowrap ${
-                              snapshot.isDragging ? 'opacity-70' : ''
-                            }`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEventClick(event);
-                            }}
-                          >
-                            <span className="font-semibold mr-1">{moment(event.startTime).format('HH:mm')}</span>
-                            <span className="truncate">{event.title}</span>
-                          </div>
+                          <ResizableEvent
+                            event={event}
+                            onEventClick={onEventClick}
+                            isInDayView={true}
+                            provided={provided}
+                            snapshot={snapshot}
+                          />
                         )}
                       </Draggable>
                     ))}
@@ -169,7 +230,16 @@ const MonthView = ({ currentDate, events, onSlotClick, onEventClick }) => {
               className={`border-b border-r p-1 min-h-[100px] flex flex-col ${
                 day.isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-400'
               } ${day.isToday ? 'bg-blue-50' : ''}`}
-              onClick={() => {
+              onClick={(e) => {
+                // Check if any resize operation is in progress
+                const isResizing = document.querySelector('.z-10.shadow-lg') !== null;
+                
+                // Don't open modal if resizing is in progress
+                if (isResizing) {
+                  e.stopPropagation();
+                  return;
+                }
+                
                 const startTime = moment(day.date).hour(9).minute(0).second(0).toDate();
                 const endTime = moment(startTime).clone().add(1, 'hour').toDate();
                 onSlotClick({ date: day.date, start: startTime, end: endTime });
@@ -197,20 +267,13 @@ const MonthView = ({ currentDate, events, onSlotClick, onEventClick }) => {
                         isDragDisabled={false}
                       >
                         {(provided, snapshot) => (
-                          <div 
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            className={`${getEventColorClass(event.category)} p-1 rounded text-xs mb-1 truncate cursor-pointer ${
-                              snapshot.isDragging ? 'opacity-70' : ''
-                            }`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEventClick(event);
-                            }}
-                          >
-                            {moment(event.startTime).format('HH:mm')} {event.title}
-                          </div>
+                          <ResizableEvent
+                            event={event}
+                            onEventClick={onEventClick}
+                            isInDayView={false}
+                            provided={provided}
+                            snapshot={snapshot}
+                          />
                         )}
                       </Draggable>
                     ))}
@@ -311,11 +374,11 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
     const term = searchTerm.toLowerCase();
     const filtered = events && Array.isArray(events) 
       ? events.filter(event => {
-          return (
-            event.title.toLowerCase().includes(term) ||
-            event.category.toLowerCase().includes(term) ||
-            moment(event.startTime).format('YYYY-MM-DD HH:mm').includes(term)
-          );
+      return (
+        event.title.toLowerCase().includes(term) ||
+        event.category.toLowerCase().includes(term) ||
+        moment(event.startTime).format('YYYY-MM-DD HH:mm').includes(term)
+      );
         })
       : [];
     
@@ -349,11 +412,35 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
 
   const days = generateDays();
 
-  // Hours for the time grid
-  const hours = [
-    '00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
-    '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
-  ];
+  // Generate time slots for every 15 minutes for the week view
+  const generateTimeSlots = () => {
+    const slots = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const hourFormatted = hour.toString().padStart(2, '0');
+        const minuteFormatted = minute.toString().padStart(2, '0');
+        // Create a moment object for consistent time formatting
+        const timeObj = moment().hour(hour).minute(minute).second(0);
+        
+        slots.push({
+          // Use 24-hour format for internal handling
+          label: minute === 0 ? `${hourFormatted}:${minuteFormatted}` : `${minuteFormatted}`,
+          // Use 12-hour AM/PM format for display
+          displayLabel: minute === 0 ? timeObj.format('h:mm A') : timeObj.format('mm'),
+          fullLabel: `${hourFormatted}:${minuteFormatted}`,
+          displayFullLabel: timeObj.format('h:mm A'), 
+          hour: hour,
+          minute: minute,
+          isFullHour: minute === 0,
+          isHalfHour: minute === 30,
+          isQuarterHour: minute === 15 || minute === 45
+        });
+      }
+    }
+    return slots;
+  };
+  
+  const timeSlots = generateTimeSlots();
   
   // Navigate to previous period
   const goToPrevious = () => {
@@ -406,6 +493,16 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
 
   // Handle click on a time slot to create a new event
   const handleSlotClick = (slotInfo) => {
+    // Check if any resize operation is in progress by looking for elements with z-10 and shadow-lg classes
+    // which are applied during resizing
+    const isResizing = document.querySelector('.z-10.shadow-lg') !== null;
+
+    // Don't open modal if resizing is in progress
+    if (isResizing) {
+      console.log('Resize operation in progress, ignoring slot click');
+      return;
+    }
+
     // Ensure dates are in proper ISO format
     const formattedSlot = {
       ...slotInfo,
@@ -419,6 +516,15 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
   // Handle click on an event to edit it
   const handleEventClick = (event, e) => {
     if (e) e.stopPropagation();
+    
+    // Check if any resize operation is in progress
+    const isResizing = document.querySelector('.z-10.shadow-lg') !== null;
+    
+    // Don't open modal if resizing is in progress
+    if (isResizing) {
+      console.log('Resize operation in progress, ignoring event click');
+      return;
+    }
     
     // Create a properly structured event object with both id and _id for compatibility
     const formattedEvent = {
@@ -461,8 +567,8 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
         // Find all events for this day and hour
         const sourceEvents = events && Array.isArray(events) 
           ? events.filter(e => {
-              return moment(e.date).isSame(moment(sourceDate), 'day') && 
-                     moment(e.startTime).hour() === sourceHourNum;
+          return moment(e.date).isSame(moment(sourceDate), 'day') && 
+                 moment(e.startTime).hour() === sourceHourNum;
             })
           : [];
         
@@ -489,9 +595,9 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
         // Find events for this day and hour
         const sourceEvents = events && Array.isArray(events) 
           ? events.filter(e => {
-              const eventDay = moment(e.date).format('ddd').toUpperCase();
-              const eventHour = moment(e.startTime).hour();
-              return eventDay === sourceDay && eventHour === sourceHourNum;
+          const eventDay = moment(e.date).format('ddd').toUpperCase();
+          const eventHour = moment(e.startTime).hour();
+          return eventDay === sourceDay && eventHour === sourceHourNum;
             })
           : [];
         
@@ -555,20 +661,23 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
     }));
   };
 
-  // Function to render events for a specific day and hour (week view)
-  const renderEvents = (day, hour) => {
+  // Function to render events for a specific day and time slot (week view)
+  const renderEvents = (day, timeSlot) => {
     const dayName = day.name;
-    const hourNum = parseInt(hour.split(':')[0]);
+    const hour = timeSlot.hour;
+    const minute = timeSlot.minute;
     
-    // Filter events for this day and hour
-    const filteredDayEvents = filteredEvents.filter(event => {
+    // Filter events for this day and time slot
+    // Modified to only include events that START at this exact time slot
+    const filteredSlotEvents = filteredEvents.filter(event => {
       const eventDay = moment(event.date).format('ddd').toUpperCase();
       const eventHour = moment(event.startTime).hour();
-      return eventDay === dayName && eventHour === hourNum;
+      const eventMinute = moment(event.startTime).minute();
+      return eventDay === dayName && eventHour === hour && eventMinute === minute;
     });
 
     // Create a unique droppable ID
-    const droppableId = `${dayName}-${hourNum}`;
+    const droppableId = `${dayName}-${hour}-${minute}`;
 
     return (
       <Droppable droppableId={droppableId} isDropDisabled={false}>
@@ -576,14 +685,39 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className="h-full"
-            onClick={() => handleSlotClick({
-              date: moment(day.date).format('YYYY-MM-DD'),
-              start: moment(day.date).hour(hourNum).minute(0).second(0).toDate(),
-              end: moment(day.date).hour(hourNum).minute(0).second(0).add(1, 'hour').toDate()
-            })}
+            className="h-full w-full relative"
+            onClick={(e) => {
+              // Check if any resize operation is in progress
+              const isResizing = document.querySelector('.z-10.shadow-lg') !== null;
+              
+              // Don't open modal if resizing is in progress
+              if (isResizing) {
+                e.stopPropagation();
+                return;
+              }
+              
+              // Create more appropriate default durations based on the time slot
+              const startTime = moment(day.date).hour(slot.hour).minute(slot.minute).second(0).toDate();
+              const duration = slot.isFullHour || slot.isHalfHour ? 30 : 15;
+              const endTime = moment(startTime).clone().add(duration, 'minutes').toDate();
+              
+              handleSlotClick({
+                date: moment(day.date).format('YYYY-MM-DD'),
+                start: startTime,
+                end: endTime
+              });
+            }}
+            onMouseEnter={() => {
+              // Add visual feedback for time slot hovering
+              if (slot.isFullHour || slot.isHalfHour) {
+                const currentTarget = event.currentTarget;
+                if (currentTarget) {
+                  currentTarget.title = `Create event at ${slot.fullLabel}`;
+                }
+              }
+            }}
           >
-            {filteredDayEvents.map((event, index) => (
+            {filteredSlotEvents.map((event, index) => (
               <Draggable 
                 key={event._id || `event-${index}`} 
                 draggableId={event._id || `event-${index}`} 
@@ -591,21 +725,13 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
                 isDragDisabled={false}
               >
                 {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
-                    className={`${getEventColorClass(event.category)} p-2 rounded text-sm mt-1 cursor-pointer ${
-                      snapshot.isDragging ? 'opacity-70' : ''
-                    }`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEventClick(event, e);
-                    }}
-                  >
-                    <div className="font-semibold">{moment(event.startTime).format('HH:mm')}</div>
-                    <div>{event.title}</div>
-                  </div>
+                  <ResizableEvent
+                    event={event}
+                    onEventClick={handleEventClick}
+                    isInDayView={false}
+                    provided={provided}
+                    snapshot={snapshot}
+                  />
                 )}
               </Draggable>
             ))}
@@ -650,22 +776,34 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
       case 'week':
       default:
         return (
-        <div className="flex flex-col h-[calc(100vh-64px)]">
-          <div className="flex overflow-x-auto flex-1">
+          <div className="flex flex-col h-[calc(100vh-120px)]">
+            <div className="flex overflow-x-auto">
             {/* Time column */}
-            <div className="w-16 flex-shrink-0 border-r sticky left-0 bg-white z-10">
+            <div className="w-20 flex-shrink-0 border-r sticky left-0 bg-white z-10">
                 <div className="h-16 flex items-end justify-center text-xs text-gray-500 font-medium sticky top-0 bg-white">
                 EST<br />GMT-5
               </div>
-              {hours.map((hour, index) => (
-                  <div key={index} className="h-16 border-t flex items-start justify-end pr-2 pt-1 text-xs text-gray-500">
-                  {hour}
+                {timeSlots.map((slot, index) => (
+                  <div 
+                    key={index} 
+                    className={`${slot.isFullHour ? 'h-16 border-t border-gray-300' : 'h-4'} 
+                                ${slot.isFullHour ? '' : 
+                                  slot.isHalfHour ? 'border-t border-dashed border-gray-300' : 
+                                  slot.isQuarterHour ? 'border-t-0 border-dotted border-gray-200' :
+                                  'border-t-0'} 
+                                flex items-start justify-end pr-2 pt-1 
+                                ${slot.isFullHour ? 'text-xs font-semibold text-gray-700' : 
+                                  slot.isHalfHour ? 'text-[10px] text-gray-600' : 
+                                  slot.isQuarterHour ? 'text-[9px] text-gray-500' :
+                                  'text-[9px] text-gray-400'}`}
+                  >
+                    {slot.isFullHour ? slot.displayLabel : slot.label}
                 </div>
               ))}
             </div>
 
             {/* Days columns */}
-            <div className="flex flex-1 min-w-0">
+              <div className="flex flex-1">
               {days.map((day, dayIndex) => (
                 <div key={dayIndex} className={`flex-1 min-w-[150px] ${day.highlighted ? 'bg-blue-50' : ''}`}>
                   {/* Day header */}
@@ -674,12 +812,94 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
                     <div className="text-xl font-medium">{day.number}</div>
                   </div>
                   
-                  {/* Hours grid */}
-                  {hours.map((hour, hourIndex) => (
-                      <div key={hourIndex} className="h-16 border-t border-r relative p-1">
-                      {renderEvents(day, hour)}
+                    {/* Time slots grid */}
+                    {timeSlots.map((slot, slotIndex) => {
+                      // Create a unique droppable ID
+                      const droppableId = `${day.name}-${slot.hour}-${slot.minute}`;
+                      
+                      return (
+                        <div 
+                          key={slotIndex} 
+                          className={`${slot.isFullHour ? 'h-16 border-t border-gray-300' : 'h-4'} 
+                                      ${slot.isFullHour ? '' : 
+                                        slot.isHalfHour ? 'border-t border-dashed border-gray-300' : 
+                                        slot.isQuarterHour ? 'border-t border-dotted border-gray-200' :
+                                        'border-t-0 border-dotted'} 
+                                      border-r`}
+                        >
+                          <Droppable droppableId={droppableId} direction="vertical" type="EVENT">
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.droppableProps}
+                                className="h-full w-full relative p-1"
+                                style={{
+                                  minHeight: slot.isFullHour ? '4rem' : '1rem',
+                                  backgroundColor: snapshot.isDraggingOver ? 'rgba(235, 244, 255, 0.8)' : 'transparent'
+                                }}
+                                onClick={(e) => {
+                                  // Check if any resize operation is in progress
+                                  const isResizing = document.querySelector('.z-10.shadow-lg') !== null;
+                                  
+                                  // Don't open modal if resizing is in progress
+                                  if (isResizing) {
+                                    e.stopPropagation();
+                                    return;
+                                  }
+                                  
+                                  // Create more appropriate default durations based on the time slot
+                                  const startTime = moment(day.date).hour(slot.hour).minute(slot.minute).second(0).toDate();
+                                  const duration = slot.isFullHour || slot.isHalfHour ? 30 : 15;
+                                  const endTime = moment(startTime).clone().add(duration, 'minutes').toDate();
+                                  
+                                  handleSlotClick({
+                                    date: moment(day.date).format('YYYY-MM-DD'),
+                                    start: startTime,
+                                    end: endTime
+                                  });
+                                }}
+                                onMouseEnter={(e) => {
+                                  // Add visual feedback for time slot hovering with more accurate time display
+                                  const currentTarget = e.currentTarget;
+                                  if (currentTarget) {
+                                    const date = moment(day.date).format('MMM D');
+                                    currentTarget.title = `Create event on ${date} at ${slot.displayFullLabel}`;
+                                  }
+                                }}
+                              >
+                                {filteredEvents
+                                  .filter(event => {
+                                    const eventDay = moment(event.date).format('ddd').toUpperCase();
+                                    const eventHour = moment(event.startTime).hour();
+                                    const eventMinute = moment(event.startTime).minute();
+                                    return eventDay === day.name && eventHour === slot.hour && eventMinute === slot.minute;
+                                  })
+                                  .map((event, index) => (
+                                    <Draggable 
+                                      key={event._id || `event-${index}`} 
+                                      draggableId={event._id || `event-${index}`} 
+                                      index={index}
+                                      isDragDisabled={false}
+                                    >
+                                      {(provided, snapshot) => (
+                                        <ResizableEvent
+                                          event={event}
+                                          onEventClick={handleEventClick}
+                                          isInDayView={false}
+                                          provided={provided}
+                                          snapshot={snapshot}
+                                        />
+                                      )}
+                                    </Draggable>
+                                  ))
+                                }
+                                {provided.placeholder}
                     </div>
-                  ))}
+                            )}
+                          </Droppable>
+                    </div>
+                      );
+                    })}
                 </div>
               ))}
             </div>
@@ -690,7 +910,6 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
   };
 
   return (
-    <DragDropContext onDragEnd={handleDragEnd}>
       <div className="w-full h-screen bg-white shadow">
         {isLoading && (
           <div className="absolute inset-0 bg-gray-100 bg-opacity-50 flex items-center justify-center z-10">
@@ -797,11 +1016,12 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
           </div>
         )}
 
-        {/* Calendar View */}
+      {/* Calendar View with DragDropWrapper */}
+      <DragDropWrapper onDragEnd={handleDragEnd}>
         {renderCalendarView()}
+      </DragDropWrapper>
       </div>
-    </DragDropContext>
   );
 };
 
-export default CustomWeeklyCalendar; 
+export default CustomWeeklyCalendar;
