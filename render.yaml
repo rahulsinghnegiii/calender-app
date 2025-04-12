@@ -7,6 +7,10 @@ services:
     buildCommand: npm install && cd backend && npm install
     startCommand: cd backend && node server.js
     healthCheckPath: /api/health
+    # Increase the service's resources for better performance
+    autoscaling:
+      min: 1
+      max: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -15,7 +19,9 @@ services:
       - key: MONGODB_URI
         sync: false # This will allow setting this secret from the Render dashboard
       - key: MONGODB_CONNECTION_TIMEOUT
-        value: 60000
+        value: 120000
+      - key: MONGODB_SOCKET_TIMEOUT
+        value: 120000
       - key: REQUEST_TIMEOUT
         value: 120000
     plan: free # Specify the pricing plan, 'free' is the default free tier
@@ -34,3 +40,15 @@ services:
       - key: VITE_API_URL
         value: https://calendar-app-backend.onrender.com/api
     # plan: free - removed as it's no longer a valid option 
+  
+  # Ping service to prevent backend from sleeping
+  - type: worker
+    name: calendar-app-ping-service
+    env: node
+    region: oregon
+    buildCommand: npm install && cd backend && npm install
+    startCommand: cd backend && node ping.js
+    envVars:
+      - key: BACKEND_URL
+        value: https://calendar-app-backend.onrender.com
+    plan: free 
