@@ -13,18 +13,26 @@ const DayView = ({ currentDate, events, onSlotClick, onEventClick }) => {
     const slots = [];
     for (let hour = 0; hour < 24; hour++) {
       for (let minute = 0; minute < 60; minute += 15) {
+        // Create moment object for consistent formatting
+        const timeObj = moment().hour(hour).minute(minute).second(0);
+        
+        // Format for internal use and display
         const hourFormatted = hour.toString().padStart(2, '0');
         const minuteFormatted = minute.toString().padStart(2, '0');
-        // Convert to moment object for consistent formatting
-        const timeObj = moment().hour(hour).minute(minute).second(0);
         
         // Add metadata to each slot for better rendering
         slots.push({
           // Format in both 12-hour and 24-hour for flexibility
           label: `${hourFormatted}:${minuteFormatted}`,
-          displayLabel: timeObj.format('h:mm A'), // 12-hour with AM/PM
+          
+          // Always use 12-hour format with AM/PM for consistency
+          displayLabel: timeObj.format('h:mm A'),
+          
+          // Time components for calculations
           hour,
           minute,
+          
+          // Flags for styling and time increments
           isFullHour: minute === 0,
           isHalfHour: minute === 30,
           isQuarterHour: minute === 15 || minute === 45
@@ -64,7 +72,7 @@ const DayView = ({ currentDate, events, onSlotClick, onEventClick }) => {
           // Find events that start at this time slot
           const slotEvents = dayEvents && Array.isArray(dayEvents) 
             ? dayEvents.filter(event => {
-                const eventHour = moment(event.startTime).hour();
+            const eventHour = moment(event.startTime).hour();
                 const eventMinute = moment(event.startTime).minute();
                 return eventHour === hour && eventMinute === minute;
               })
@@ -81,7 +89,7 @@ const DayView = ({ currentDate, events, onSlotClick, onEventClick }) => {
               {isFullHour && (
                 <div className="w-20 p-2 text-right text-xs text-gray-700 font-semibold border-r sticky left-0 bg-white">
                   {timeSlot.displayLabel}
-                </div>
+              </div>
               )}
               {isHalfHour && (
                 <div className="w-20 py-1 text-right text-[10px] text-gray-600 border-r sticky left-0 bg-white">
@@ -417,20 +425,33 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
     const slots = [];
     for (let hour = 0; hour < 24; hour++) {
       for (let minute = 0; minute < 60; minute += 15) {
-        const hourFormatted = hour.toString().padStart(2, '0');
-        const minuteFormatted = minute.toString().padStart(2, '0');
         // Create a moment object for consistent time formatting
         const timeObj = moment().hour(hour).minute(minute).second(0);
         
+        // Format for internal use (24-hour format) and display (12-hour format)
+        const hourFormatted = hour.toString().padStart(2, '0');
+        const minuteFormatted = minute.toString().padStart(2, '0');
+        
         slots.push({
           // Use 24-hour format for internal handling
-          label: minute === 0 ? `${hourFormatted}:${minuteFormatted}` : `${minuteFormatted}`,
-          // Use 12-hour AM/PM format for display
-          displayLabel: minute === 0 ? timeObj.format('h:mm A') : timeObj.format('mm'),
+          label: `${hourFormatted}:${minuteFormatted}`,
+          
+          // Use 12-hour AM/PM format for display, with special handling for different minute values
+          displayLabel: minute === 0 
+            ? timeObj.format('h:mm A') 
+            : minute === 30 
+              ? timeObj.format('h:mm A')
+              : timeObj.format('h:mm A'),
+              
+          // Full labels for tooltips and accessibility
           fullLabel: `${hourFormatted}:${minuteFormatted}`,
           displayFullLabel: timeObj.format('h:mm A'), 
+          
+          // Time components for calculations
           hour: hour,
           minute: minute,
+          
+          // Flags for styling
           isFullHour: minute === 0,
           isHalfHour: minute === 30,
           isQuarterHour: minute === 15 || minute === 45
@@ -503,13 +524,36 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
       return;
     }
 
-    // Ensure dates are in proper ISO format
+    // Ensure dates are in proper format
     const formattedSlot = {
       ...slotInfo,
-      date: slotInfo.date ? moment(slotInfo.date).format('YYYY-MM-DD') : moment().format('YYYY-MM-DD'),
+      date: slotInfo.date ? moment(slotInfo.date).startOf('day').toDate() : moment().startOf('day').toDate(),
       start: slotInfo.start ? moment(slotInfo.start).toDate() : null,
       end: slotInfo.end ? moment(slotInfo.end).toDate() : null
     };
+    
+    // Round times to nearest 5-minute interval for better UX
+    if (formattedSlot.start) {
+      const startMinutes = moment(formattedSlot.start).minutes();
+      const roundedStartMinutes = Math.round(startMinutes / 5) * 5;
+      formattedSlot.start = moment(formattedSlot.start).minutes(roundedStartMinutes).seconds(0).milliseconds(0).toDate();
+      
+      // If end time exists, ensure it's also rounded and at least 15 minutes after start
+      if (formattedSlot.end) {
+        const minDuration = 15; // Minimum duration in minutes
+        const endMinutes = moment(formattedSlot.end).minutes();
+        const roundedEndMinutes = Math.round(endMinutes / 5) * 5;
+        
+        // Create a properly rounded end time
+        const roundedEnd = moment(formattedSlot.end).minutes(roundedEndMinutes).seconds(0).milliseconds(0);
+        
+        // Ensure end time is at least minDuration minutes after start time
+        const minEndTime = moment(formattedSlot.start).add(minDuration, 'minutes');
+        
+        formattedSlot.end = moment.max(roundedEnd, minEndTime).toDate();
+      }
+    }
+    
     onModalOpen(formattedSlot, null);
   };
 
@@ -526,15 +570,18 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
       return;
     }
     
-    // Create a properly structured event object with both id and _id for compatibility
+    // Create a properly structured event object with normalized date properties
     const formattedEvent = {
       id: event._id,
       _id: event._id,
       title: event.title,
       category: event.category,
-      start: new Date(event.startTime),
-      end: new Date(event.endTime),
-      date: new Date(event.date)
+      start: moment(event.startTime).toDate(),
+      end: moment(event.endTime).toDate(),
+      date: moment(event.date).startOf('day').toDate(),
+      // Include original timestamps for reference
+      startTime: moment(event.startTime).toDate(),
+      endTime: moment(event.endTime).toDate()
     };
     
     onModalOpen(null, formattedEvent);
@@ -542,204 +589,201 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
 
   // Handle drag end for events (applies to all views)
   const handleDragEnd = (result) => {
-    if (!result.destination || !events || !Array.isArray(events)) return;
+    if (!result.destination) return; // Drop outside droppable area
     
-    const { source, destination } = result;
-    const eventId = result.draggableId;
+    const { source, destination, draggableId } = result;
     
-    // Handle both _id and generated ids (event-index format)
+    // Handle task drops from sidebar to calendar
+    if (draggableId.startsWith('task-')) {
+      // Extract the task ID from the draggableId (format: "task-{taskId}")
+      const taskId = draggableId.replace('task-', '');
+      
+      // Get task data from Redux store
+      const allTasks = useSelector(state => state.tasks.tasks);
+      const task = allTasks.find(t => t._id === taskId);
+      
+      if (!task) return; // Task not found
+      
+      // Get the goal associated with the task to use its color
+      const allGoals = useSelector(state => state.goals.goals);
+      const goal = allGoals.find(g => g._id === task.goalId);
+      
+      // Parse the destination.droppableId to get date and time
+      // Format could be: "DAY-YYYY-MM-DD-HH-MM" for day view or "{DAY_NAME}-{HOUR}-{MINUTE}" for week view
+      const destinationParts = destination.droppableId.split('-');
+      
+      let eventDate, eventStartTime, eventEndTime;
+      
+      if (destination.droppableId.startsWith('DAY-')) {
+        // Day view format: DAY-YYYY-MM-DD-HH-MM
+        const dateString = `${destinationParts[1]}-${destinationParts[2]}-${destinationParts[3]}`;
+        const hour = parseInt(destinationParts[4]);
+        const minute = parseInt(destinationParts[5] || '0');
+        
+        eventDate = moment(dateString).toDate();
+        eventStartTime = moment(eventDate).hour(hour).minute(minute).second(0).toDate();
+        // Default duration of 30 minutes
+        eventEndTime = moment(eventStartTime).add(30, 'minutes').toDate();
+      } else if (destinationParts.length >= 3) {
+        // Week view format: {DAY_NAME}-{HOUR}-{MINUTE}
+        const dayName = destinationParts[0];
+        const hour = parseInt(destinationParts[1]);
+        const minute = parseInt(destinationParts[2]);
+        
+        // Find the date from the days array
+        const day = days.find(d => d.name === dayName);
+        
+        if (day) {
+          eventDate = day.date;
+          eventStartTime = moment(eventDate).hour(hour).minute(minute).second(0).toDate();
+          // Default duration of 30 minutes
+          eventEndTime = moment(eventStartTime).add(30, 'minutes').toDate();
+        }
+      } else {
+        // Couldn't parse droppable ID format
+        console.error('Invalid droppable ID format:', destination.droppableId);
+        return;
+      }
+      
+      if (eventDate && eventStartTime && eventEndTime) {
+        // Create event data from task
+        const eventData = {
+          title: task.title,
+          // Map the task's goal category to an event category if possible, otherwise use a default
+          category: goal ? mapGoalCategoryToEventCategory(goal.color) : 'work',
+          date: moment(eventDate).startOf('day').toDate(),
+          startTime: eventStartTime,
+          endTime: eventEndTime
+        };
+        
+        // Open the modal with pre-populated data
+        onModalOpen({
+          date: moment(eventDate).format('YYYY-MM-DD'),
+          start: eventStartTime,
+          end: eventEndTime,
+          title: task.title,
+          category: eventData.category
+        }, null);
+      }
+      
+      return;
+    }
+    
+    // Handle regular event drag and drop
+    if (!events || !Array.isArray(events)) return;
+    
+    const eventId = draggableId.includes('event-') ? 
+      parseInt(draggableId.split('-').pop()) : 
+      draggableId;
+    
+    // Find the event
     let event;
-    if (eventId.startsWith('day-event-') || eventId.startsWith('month-event-')) {
-      const index = parseInt(eventId.split('-').pop());
-      
-      // Find the event based on the source droppable ID
+    if (draggableId.includes('event-')) {
+      // Find event by index in a specific view
       const sourceId = source.droppableId;
-      let sourceDate;
-      let sourceHourNum;
       
-      // Parse the source information based on the view
       if (sourceId.startsWith('DAY-')) {
         // Day view format: DAY-YYYY-MM-DD-HH
         const parts = sourceId.split('-');
-        sourceDate = moment(`${parts[1]}-${parts[2]}-${parts[3]}`).toDate();
-        sourceHourNum = parseInt(parts[4]);
+        const sourceDate = moment(`${parts[1]}-${parts[2]}-${parts[3]}`).toDate();
+        const sourceHour = parseInt(parts[4]);
         
         // Find all events for this day and hour
-        const sourceEvents = events && Array.isArray(events) 
-          ? events.filter(e => {
-          return moment(e.date).isSame(moment(sourceDate), 'day') && 
-                 moment(e.startTime).hour() === sourceHourNum;
-            })
-          : [];
-        
-        event = sourceEvents[source.index];
-      } else if (sourceId.startsWith('MONTH-')) {
-        // Month view format: MONTH-YYYY-MM-DD
-        const parts = sourceId.split('-');
-        sourceDate = moment(`${parts[1]}-${parts[2]}-${parts[3]}`).toDate();
-        
-        // Find all events for this day
-        const sourceEvents = events && Array.isArray(events) 
-          ? events.filter(e => moment(e.date).isSame(moment(sourceDate), 'day'))
-          : [];
+        const sourceEvents = events.filter(e => 
+          moment(e.date).isSame(moment(sourceDate), 'day') && 
+          moment(e.startTime).hour() === sourceHour
+        );
         
         event = sourceEvents[source.index];
       } else if (sourceId.includes('-')) {
         // Week view format: DAY-HH
         const [sourceDay, sourceHour] = sourceId.split('-');
-        sourceHourNum = parseInt(sourceHour);
-        sourceDate = days.find(d => d.name === sourceDay)?.date;
+        const day = days.find(d => d.name === sourceDay);
         
-        if (!sourceDate) return;
+        if (!day) return;
         
         // Find events for this day and hour
-        const sourceEvents = events && Array.isArray(events) 
-          ? events.filter(e => {
+        const sourceEvents = events.filter(e => {
           const eventDay = moment(e.date).format('ddd').toUpperCase();
           const eventHour = moment(e.startTime).hour();
-          return eventDay === sourceDay && eventHour === sourceHourNum;
-            })
-          : [];
+          return eventDay === sourceDay && eventHour === parseInt(sourceHour);
+        });
         
         event = sourceEvents[source.index];
       }
     } else {
+      // Find event directly by ID
       event = events.find(e => e._id === eventId);
     }
     
     if (!event) {
-      console.error('No event found for draggable ID:', eventId);
+      console.error('Event not found for draggableId:', draggableId);
       return;
     }
     
-    // Process the destination based on its droppable ID format
+    // Parse destination droppable ID to get new date and time
     const destId = destination.droppableId;
-    let destDate;
-    let destHour = 0;
+    let newStart;
     
     if (destId.startsWith('DAY-')) {
-      // Day view: DAY-YYYY-MM-DD-HH
+      // Day view format: DAY-YYYY-MM-DD-HH
       const parts = destId.split('-');
-      destDate = moment(`${parts[1]}-${parts[2]}-${parts[3]}`).toDate();
-      destHour = parseInt(parts[4]);
-    } else if (destId.startsWith('MONTH-')) {
-      // Month view: MONTH-YYYY-MM-DD
-      const parts = destId.split('-');
-      destDate = moment(`${parts[1]}-${parts[2]}-${parts[3]}`).toDate();
-      // For month view, we keep the same hour but change the date
-      destHour = moment(event.startTime).hour();
+      const destDate = moment(`${parts[1]}-${parts[2]}-${parts[3]}`).toDate();
+      const destHour = parseInt(parts[4]);
+      const destMinute = parseInt(parts[5] || '0');
+      
+      newStart = moment(destDate).hour(destHour).minute(destMinute).second(0).toDate();
     } else if (destId.includes('-')) {
-      // Week view: DAY-HH
-      const [destDay, destHourStr] = destId.split('-');
-      destDate = days.find(d => d.name === destDay)?.date;
-      if (!destDate) return;
-      destHour = parseInt(destHourStr);
+      // Week view format: DAY-HH-MM
+      const destParts = destId.split('-');
+      const destDay = destParts[0];
+      const destHour = parseInt(destParts[1]);
+      const destMinute = parseInt(destParts[2] || '0');
+      
+      // Find the date from the days array
+      const day = days.find(d => d.name === destDay);
+      
+      if (!day) return;
+      
+      newStart = moment(day.date).hour(destHour).minute(destMinute).second(0).toDate();
     } else {
-      console.error('Unknown destination format:', destId);
       return;
     }
     
-    // Keep the same duration
-    const duration = moment(event.endTime).diff(moment(event.startTime), 'minutes');
+    // Calculate new times
+    const { date: newDate, startTime: newStartTime, endTime: newEndTime } = 
+      calculateNewTimesAfterDrag(event.date, event.startTime, event.endTime, newStart);
     
-    // Calculate new start and end times
-    const newStartTime = moment(destDate).hour(destHour).minute(0).second(0).toDate();
-    const newEndTime = moment(newStartTime).add(duration, 'minutes').toDate();
-    
-    // Create updated event object
+    // Update the event
     const updatedEvent = {
       ...event,
-      date: moment(destDate).startOf('day').toDate(),
+      date: newDate,
       startTime: newStartTime,
       endTime: newEndTime
     };
     
-    // Dispatch update action
-    dispatch(updateEvent({ 
-      id: event._id, 
-      eventData: updatedEvent 
+    // Dispatch the update
+    dispatch(updateEvent({
+      id: event._id,
+      eventData: updatedEvent
     }));
   };
-
-  // Function to render events for a specific day and time slot (week view)
-  const renderEvents = (day, timeSlot) => {
-    const dayName = day.name;
-    const hour = timeSlot.hour;
-    const minute = timeSlot.minute;
+  
+  // Helper function to map goal color to an event category
+  const mapGoalCategoryToEventCategory = (goalColor) => {
+    // Map color to category - this can be customized based on your app's color scheme
+    const colorMap = {
+      '#3B82F6': 'work',      // Blue
+      '#10B981': 'exercise',  // Green
+      '#EF4444': 'family',    // Red
+      '#F59E0B': 'eating',    // Amber
+      '#8B5CF6': 'relax',     // Purple
+      '#EC4899': 'social',    // Pink
+      '#6B7280': 'work',      // Gray
+      '#000000': 'work'       // Black
+    };
     
-    // Filter events for this day and time slot
-    // Modified to only include events that START at this exact time slot
-    const filteredSlotEvents = filteredEvents.filter(event => {
-      const eventDay = moment(event.date).format('ddd').toUpperCase();
-      const eventHour = moment(event.startTime).hour();
-      const eventMinute = moment(event.startTime).minute();
-      return eventDay === dayName && eventHour === hour && eventMinute === minute;
-    });
-
-    // Create a unique droppable ID
-    const droppableId = `${dayName}-${hour}-${minute}`;
-
-    return (
-      <Droppable droppableId={droppableId} isDropDisabled={false}>
-        {(provided) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className="h-full w-full relative"
-            onClick={(e) => {
-              // Check if any resize operation is in progress
-              const isResizing = document.querySelector('.z-10.shadow-lg') !== null;
-              
-              // Don't open modal if resizing is in progress
-              if (isResizing) {
-                e.stopPropagation();
-                return;
-              }
-              
-              // Create more appropriate default durations based on the time slot
-              const startTime = moment(day.date).hour(slot.hour).minute(slot.minute).second(0).toDate();
-              const duration = slot.isFullHour || slot.isHalfHour ? 30 : 15;
-              const endTime = moment(startTime).clone().add(duration, 'minutes').toDate();
-              
-              handleSlotClick({
-                date: moment(day.date).format('YYYY-MM-DD'),
-                start: startTime,
-                end: endTime
-              });
-            }}
-            onMouseEnter={() => {
-              // Add visual feedback for time slot hovering
-              if (slot.isFullHour || slot.isHalfHour) {
-                const currentTarget = event.currentTarget;
-                if (currentTarget) {
-                  currentTarget.title = `Create event at ${slot.fullLabel}`;
-                }
-              }
-            }}
-          >
-            {filteredSlotEvents.map((event, index) => (
-              <Draggable 
-                key={event._id || `event-${index}`} 
-                draggableId={event._id || `event-${index}`} 
-                index={index}
-                isDragDisabled={false}
-              >
-                {(provided, snapshot) => (
-                  <ResizableEvent
-                    event={event}
-                    onEventClick={handleEventClick}
-                    isInDayView={false}
-                    provided={provided}
-                    snapshot={snapshot}
-                  />
-                )}
-              </Draggable>
-            ))}
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
-    );
+    return colorMap[goalColor] || 'work'; // Default to work category if no match
   };
 
   // Render the appropriate view based on currentView
@@ -1024,4 +1068,4 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
   );
 };
 
-export default CustomWeeklyCalendar;
+export default CustomWeeklyCalendar; 

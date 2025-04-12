@@ -10,11 +10,20 @@ export const formatDate = (date) => {
 };
 
 /**
- * Format time to HH:mm format
+ * Format time to 12-hour format with AM/PM
  * @param {Date} date - Date to extract time from
  * @returns {string} Formatted time string
  */
 export const formatTime = (date) => {
+  return moment(date).format('h:mm A');
+};
+
+/**
+ * Format time for internal use (24-hour format)
+ * @param {Date} date - Date to extract time from
+ * @returns {string} Formatted time string in 24-hour format
+ */
+export const formatTimeInternal = (date) => {
   return moment(date).format('HH:mm');
 };
 
@@ -44,11 +53,12 @@ export const combineDateAndTime = (dateStr, timeStr) => {
  * Get a human readable representation of the event time range
  * @param {Date} startTime - Event start time
  * @param {Date} endTime - Event end time
- * @returns {string} Formatted time range string (e.g. "10:00 - 11:30")
+ * @returns {string} Formatted time range string (e.g. "10:00 AM - 11:30 AM")
  */
 export const getReadableTimeRange = (startTime, endTime) => {
-  const start = moment(startTime).format('HH:mm');
-  const end = moment(endTime).format('HH:mm');
+  // Use 12-hour format with AM/PM for better readability
+  const start = moment(startTime).format('h:mm A');
+  const end = moment(endTime).format('h:mm A');
   return `${start} - ${end}`;
 };
 
@@ -81,6 +91,20 @@ export const getDurationInMinutes = (startTime, endTime) => {
 };
 
 /**
+ * Format duration in a human-readable way
+ * @param {number} minutes - Duration in minutes
+ * @returns {string} Formatted duration (e.g. "1h 30m" or "45m")
+ */
+export const formatDuration = (minutes) => {
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  }
+  return `${minutes}m`;
+};
+
+/**
  * Calculate new date and times after drag and drop
  * @param {Date} originalDate - Original event date
  * @param {Date} originalStart - Original start time
@@ -105,14 +129,30 @@ export const calculateNewTimesAfterDrag = (originalDate, originalStart, original
   };
 };
 
+/**
+ * Round time to nearest interval (like 5 or 15 minutes)
+ * @param {Date} time - Time to round
+ * @param {number} intervalMinutes - Interval in minutes (default: 5)
+ * @returns {Date} Rounded time
+ */
+export const roundTimeToInterval = (time, intervalMinutes = 5) => {
+  const momentTime = moment(time);
+  const minutes = momentTime.minutes();
+  const roundedMinutes = Math.round(minutes / intervalMinutes) * intervalMinutes;
+  return momentTime.minutes(roundedMinutes).seconds(0).milliseconds(0).toDate();
+};
+
 export default {
   formatDate,
   formatTime,
+  formatTimeInternal,
   getWeekRange,
   combineDateAndTime,
   getReadableTimeRange,
   isToday,
   getDayName,
   getDurationInMinutes,
-  calculateNewTimesAfterDrag
+  formatDuration,
+  calculateNewTimesAfterDrag,
+  roundTimeToInterval
 }; 

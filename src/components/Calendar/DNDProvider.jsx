@@ -1,16 +1,19 @@
 import React from 'react';
-import { DragDropContext } from '@hello-pangea/dnd';
+import { DragDropContext } from '../DndContext';
 
 /**
  * Updated version that addresses the defaultProps warning by using
- * function default parameters instead of defaultProps
+ * our enhanced DragDropContext component with React.forwardRef
  */
-function DNDProvider({ children, onDragEnd = () => {} }) {
+const DNDProvider = React.forwardRef(({ children, onDragEnd = () => {} }, ref) => {
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       {children}
     </DragDropContext>
   );
-}
+});
+
+// Set display name for debugging
+DNDProvider.displayName = 'CalendarDNDProvider';
 
 export default DNDProvider;

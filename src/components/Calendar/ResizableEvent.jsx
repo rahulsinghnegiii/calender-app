@@ -38,6 +38,7 @@ const ResizableEvent = ({
   const eventRef = useRef(null);
 
   // Calculate event height based on duration and match the calendar's slot heights
+  // Ensure we're working with proper moment objects
   const startTime = moment(event.startTime);
   const endTime = moment(event.endTime);
   const durationMinutes = endTime.diff(startTime, 'minutes');
@@ -72,10 +73,11 @@ const ResizableEvent = ({
     const snappedMinutes = Math.round(newDurationMinutes / 5) * 5;
     
     // Create new end time based on start time + new duration
+    // Use moment to handle date calculations correctly
     const newEndTime = moment(event.startTime).add(snappedMinutes, 'minutes').toDate();
     
     // Update end time state if different
-    if (!resizeEndTime || !moment(resizeEndTime).isSame(moment(newEndTime))) {
+    if (!resizeEndTime || !moment(resizeEndTime).isSame(moment(newEndTime), 'minute')) {
       setResizeEndTime(newEndTime);
       setTimeSnapped(true); // Indicate successful snap for feedback
       
@@ -111,15 +113,16 @@ const ResizableEvent = ({
     const newHeight = Math.max(20, initialHeight + deltaY);
     setCurrentHeight(newHeight);
     
-    // Calculate new end time based on height change using the precise pixel-to-minute ratio
-    const heightDiffInMinutes = Math.round(deltaY / minutePixelRatio);
+    // Calculate new duration based on height difference
+    const newDurationMinutes = Math.round(newHeight / minutePixelRatio);
     
-    // Calculate new end time based on original end time plus the height difference in minutes
-    // Snap to 5-minute increments for better usability
-    const snappedMinutes = Math.round(heightDiffInMinutes / 5) * 5;
-    const newEndTime = moment(event.endTime).add(snappedMinutes, 'minutes').toDate();
+    // Calculate new end time based on start time + new duration
+    // Use moment for accurate time calculations
+    const newEndTime = moment(event.startTime)
+      .add(Math.round(newDurationMinutes / 5) * 5, 'minutes')
+      .toDate();
     
-    // Only update if different from current resizeEndTime to prevent constant rerenders
+    // Update only if different from current
     if (!resizeEndTime || !moment(resizeEndTime).isSame(moment(newEndTime), 'minute')) {
       setResizeEndTime(newEndTime);
     }
@@ -188,14 +191,18 @@ const ResizableEvent = ({
 
   // Format time range for display with improved accuracy
   const formatTimeRange = () => {
-    // Use consistent time format for better readability
-    const startFormat = 'h:mm';
-    const endFormat = 'h:mm A'; // Only show AM/PM on end time to save space
+    // For consistency with the calendar time labels, use 12-hour format with AM/PM
+    const displayFormat = 'h:mm A';
     
-    const start = moment(event.startTime).format(startFormat);
-    const end = moment(resizeEndTime || event.endTime).format(endFormat);
+    // Ensure we have valid Moment objects
+    const start = moment(event.startTime);
+    const end = moment(resizeEndTime || event.endTime);
     
-    return `${start} – ${end}`;
+    // Format with leading zeros for minutes
+    const startFormatted = start.format(displayFormat);
+    const endFormatted = end.format(displayFormat);
+    
+    return `${startFormatted} - ${endFormatted}`;
   };
 
   // Format duration text for display - make more precise
@@ -211,7 +218,14 @@ const ResizableEvent = ({
   // Calculate duration during resize for more accurate feedback
   const getResizeDuration = () => {
     if (!resizeEndTime) return durationMinutes;
-    const mins = moment(resizeEndTime).diff(moment(event.startTime), 'minutes');
+    
+    // Use moment for more accurate duration calculation
+    const startMoment = moment(event.startTime);
+    const endMoment = moment(resizeEndTime);
+    
+    // Get duration in minutes
+    const mins = endMoment.diff(startMoment, 'minutes');
+    
     // Round to nearest minute for accuracy
     return Math.round(mins);
   };
@@ -219,6 +233,7 @@ const ResizableEvent = ({
   // Get a more accurate duration display during resize
   const getCurrentDuration = () => {
     const mins = isResizing ? getResizeDuration() : durationMinutes;
+    
     if (mins >= 60) {
       const hours = Math.floor(mins / 60);
       const minutes = mins % 60;
@@ -230,13 +245,19 @@ const ResizableEvent = ({
   // Determine if this is a short event (less than 30 minutes)
   const isShortEvent = durationMinutes < 30;
   
+  // Get time precision for display (show seconds during resize for more feedback)
+  const getTimeFormat = () => {
+    return isResizing ? 'h:mm:ss A' : 'h:mm A';
+  };
+  
   // Generate time label classes based on resize state and event duration
   const timeLabelClasses = isResizing 
     ? `font-semibold text-[10px] bg-white bg-opacity-85 px-1 py-0.5 rounded text-blue-800 shadow-sm ${timeSnapped ? 'animate-pulse' : ''}`
     : `font-semibold text-[10px] ${isShortEvent ? 'bg-white bg-opacity-80' : 'bg-white bg-opacity-70'} px-1 py-0.5 rounded-sm text-gray-800`;
 
-  // Format the end time to show during resize
-  const formattedEndTime = moment(resizeEndTime || event.endTime).format(isResizing ? 'h:mm:ss A' : 'h:mm A');
+  // Format event times with proper accuracy
+  const formattedStartTime = moment(event.startTime).format(getTimeFormat());
+  const formattedEndTime = moment(resizeEndTime || event.endTime).format(getTimeFormat());
 
   return (
     <div
@@ -318,7 +339,10 @@ const ResizableEvent = ({
       {isResizing && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className={`bg-white bg-opacity-90 px-2 py-1 rounded shadow-sm text-[10px] font-bold text-blue-800 ${timeSnapped ? 'ring-2 ring-blue-400' : ''}`}>
-            {getCurrentDuration()} ({formattedEndTime})
+            <div>{formattedStartTime}</div>
+            <div className="text-center font-medium">↓</div>
+            <div>{formattedEndTime}</div>
+            <div className="text-xs text-center mt-1 border-t border-blue-100 pt-1">{getCurrentDuration()}</div>
           </div>
         </div>
       )}

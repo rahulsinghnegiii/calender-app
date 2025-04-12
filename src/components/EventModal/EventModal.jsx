@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useForm } from 'react-hook-form';
 import { createEvent, updateEvent, deleteEvent } from '../../redux/reducers/eventSlice';
+import { toggleTaskCompletion } from '../../redux/reducers/taskSlice';
 import moment from 'moment';
-import { formatDate, formatTime, combineDateAndTime } from '../../utils/dateUtils';
+import { formatDate, formatTime, formatTimeInternal, combineDateAndTime, roundTimeToInterval } from '../../utils/dateUtils';
 import { getEventCategories } from '../../utils/eventUtils';
 
 const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
@@ -26,6 +27,8 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
     if (selectedEvent) {
       // Format dates for the form inputs
       const eventDate = formatDate(selectedEvent.start);
+      
+      // Use formatTime for display (12-hour format) but store internal values for form submission
       const startTime = formatTime(selectedEvent.start);
       const endTime = formatTime(selectedEvent.end);
       
@@ -34,22 +37,71 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
         category: selectedEvent.category,
         date: eventDate,
         startTime: startTime,
-        endTime: endTime
+        endTime: endTime,
+        // Add internal 24-hour time formats for form processing
+        _startTimeInternal: formatTimeInternal(selectedEvent.start),
+        _endTimeInternal: formatTimeInternal(selectedEvent.end)
       });
     } else if (selectedSlot) {
-      const slotDate = formatDate(selectedSlot.start);
-      const startTime = formatTime(selectedSlot.start);
-      const endTime = formatTime(selectedSlot.end);
+      // Round times to nearest 5-minute interval for better UX
+      const roundedStart = roundTimeToInterval(selectedSlot.start, 5);
+      const roundedEnd = roundTimeToInterval(selectedSlot.end, 5);
       
-      reset({
-        title: '',
-        category: 'work',
-        date: slotDate,
-        startTime: startTime,
-        endTime: endTime
-      });
+      const slotDate = formatDate(roundedStart);
+      const startTime = formatTime(roundedStart);
+      const endTime = formatTime(roundedEnd);
+      
+      // Check if this is a task being dropped on the calendar
+      if (selectedSlot.taskData) {
+        // Pre-fill with task data
+        const taskTitle = selectedSlot.taskData.title || '';
+        
+        // Map goal color to a category if possible, or use default
+        const taskCategory = mapGoalColorToCategory(selectedSlot.taskData.goalColor) || 'work';
+        
+        reset({
+          title: taskTitle,
+          category: taskCategory,
+          date: slotDate,
+          startTime: startTime,
+          endTime: endTime,
+          // Store the task ID for reference
+          _taskId: selectedSlot.taskData.taskId,
+          // Add internal 24-hour time formats for form processing
+          _startTimeInternal: formatTimeInternal(roundedStart),
+          _endTimeInternal: formatTimeInternal(roundedEnd)
+        });
+      } else {
+        // Regular slot selection without task data
+        reset({
+          title: '',
+          category: 'work',
+          date: slotDate,
+          startTime: startTime,
+          endTime: endTime,
+          // Add internal 24-hour time formats for form processing
+          _startTimeInternal: formatTimeInternal(roundedStart),
+          _endTimeInternal: formatTimeInternal(roundedEnd)
+        });
+      }
     }
   }, [selectedEvent, selectedSlot, reset]);
+
+  // Helper function to map goal color to event category
+  const mapGoalColorToCategory = (goalColor) => {
+    // This is a simple mapping based on common colors
+    // You might want to make this more sophisticated
+    const colorMapping = {
+      '#3B82F6': 'work',      // Blue -> Work
+      '#10B981': 'exercise',  // Green -> Exercise
+      '#EF4444': 'family',    // Red -> Family
+      '#F59E0B': 'eating',    // Amber -> Eating
+      '#8B5CF6': 'relax',     // Purple -> Relax
+      '#EC4899': 'social',    // Pink -> Social
+    };
+    
+    return colorMapping[goalColor] || 'work';
+  };
 
   // Handle form submission
   const onSubmit = (data) => {
@@ -57,17 +109,15 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
     console.log('Form data:', data);
     
     try {
-      // Create properly formatted ISO date strings
-      const dateStr = data.date; // Already in YYYY-MM-DD format
-      const startTimeStr = data.startTime; // In HH:MM format
-      const endTimeStr = data.endTime; // In HH:MM format
+      // Parse the date and time correctly using Moment for consistency
+      const dateStr = data.date; // YYYY-MM-DD format
       
-      // Parse dates correctly using ISO format with T separator
-      const startDateTime = new Date(`${dateStr}T${startTimeStr}:00`);
-      const endDateTime = new Date(`${dateStr}T${endTimeStr}:00`);
+      // Combine date and time using our utility function that handles format consistency
+      const startDateTime = combineDateAndTime(dateStr, data._startTimeInternal || data.startTime);
+      const endDateTime = combineDateAndTime(dateStr, data._endTimeInternal || data.endTime);
       
       // Create a clean date without time component
-      const cleanDate = new Date(`${dateStr}T00:00:00`);
+      const cleanDate = moment(dateStr).startOf('day').toDate();
       
       console.log('Parsed dates:', {
         date: cleanDate,
@@ -76,8 +126,15 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
       });
       
       // Validate dates are valid
-      if (isNaN(cleanDate) || isNaN(startDateTime) || isNaN(endDateTime)) {
+      if (!moment(cleanDate).isValid() || !moment(startDateTime).isValid() || !moment(endDateTime).isValid()) {
         console.error('Invalid date format');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Ensure end time is after start time
+      if (moment(endDateTime).isSameOrBefore(moment(startDateTime))) {
+        alert('End time must be after start time');
         setIsSubmitting(false);
         return;
       }
@@ -89,6 +146,11 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
         startTime: startDateTime.toISOString(),
         endTime: endDateTime.toISOString()
       };
+      
+      // If this event was created from a task, add a reference to the task
+      if (data._taskId) {
+        eventData.taskId = data._taskId;
+      }
       
       console.log('Submitting event data:', eventData);
       
@@ -113,6 +175,16 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
           .unwrap()
           .then(() => {
             setIsSubmitting(false);
+            
+            // If this event was created from a task, mark the task as completed
+            if (data._taskId) {
+              console.log('Marking task as completed:', data._taskId);
+              dispatch(toggleTaskCompletion(data._taskId))
+                .catch(error => {
+                  console.error('Failed to mark task as completed:', error);
+                });
+            }
+            
             onClose();
           })
           .catch((error) => {

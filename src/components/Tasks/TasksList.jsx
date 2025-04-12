@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchTasks, toggleTaskCompletion } from '../../redux/reducers/taskSlice';
 import { selectSelectedGoal } from '../../redux/reducers/goalSlice';
-import { DragDropContext, Droppable } from '../DndContext';
+import { Droppable } from '../DndContext';
 import { PlusIcon } from '../Icons/Icons';
 import TaskModal from './TaskModal';
 import DraggableTask from './DraggableTask';
@@ -44,12 +44,6 @@ const TasksList = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingTask(null);
-  };
-  
-  // Handle drag end for reordering tasks
-  const handleDragEnd = (result) => {
-    // We'll implement task reordering in a future update
-    console.log('Task reordering:', result);
   };
   
   // Separate tasks into completed and incomplete
@@ -99,22 +93,48 @@ const TasksList = () => {
           </button>
         </div>
       ) : (
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-2">Tasks to Complete</h4>
-            <Droppable droppableId="incomplete-tasks">
-              {(provided) => (
-                <ul
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  className="space-y-2 mb-6"
-                >
-                  {incompleteTasks.length === 0 ? (
-                    <li className="p-2 text-sm text-gray-500 italic">
-                      All tasks completed! Add more tasks or celebrate your achievement.
-                    </li>
-                  ) : (
-                    incompleteTasks.map((task, index) => (
+        <div>
+          <h4 className="text-sm font-medium text-gray-500 mb-2">Tasks to Complete</h4>
+          <Droppable droppableId="incomplete-tasks" type="TASK">
+            {(provided) => (
+              <ul
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className="space-y-2 mb-6"
+              >
+                {incompleteTasks.length === 0 ? (
+                  <li className="p-2 text-sm text-gray-500 italic">
+                    All tasks completed! Add more tasks or celebrate your achievement.
+                  </li>
+                ) : (
+                  incompleteTasks.map((task, index) => (
+                    <DraggableTask
+                      key={task._id}
+                      task={task}
+                      index={index}
+                      onTaskToggle={handleTaskToggle}
+                      onEditTask={handleEditTask}
+                      goalColor={selectedGoal.color}
+                      isCompleted={false}
+                    />
+                  ))
+                )}
+                {provided.placeholder}
+              </ul>
+            )}
+          </Droppable>
+          
+          {completedTasks.length > 0 && (
+            <>
+              <h4 className="text-sm font-medium text-gray-500 mb-2">Completed Tasks</h4>
+              <Droppable droppableId="completed-tasks" type="TASK">
+                {(provided) => (
+                  <ul
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className="space-y-2"
+                  >
+                    {completedTasks.map((task, index) => (
                       <DraggableTask
                         key={task._id}
                         task={task}
@@ -122,44 +142,16 @@ const TasksList = () => {
                         onTaskToggle={handleTaskToggle}
                         onEditTask={handleEditTask}
                         goalColor={selectedGoal.color}
-                        isCompleted={false}
+                        isCompleted={true}
                       />
-                    ))
-                  )}
-                  {provided.placeholder}
-                </ul>
-              )}
-            </Droppable>
-            
-            {completedTasks.length > 0 && (
-              <>
-                <h4 className="text-sm font-medium text-gray-500 mb-2">Completed Tasks</h4>
-                <Droppable droppableId="completed-tasks">
-                  {(provided) => (
-                    <ul
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className="space-y-2"
-                    >
-                      {completedTasks.map((task, index) => (
-                        <DraggableTask
-                          key={task._id}
-                          task={task}
-                          index={index}
-                          onTaskToggle={handleTaskToggle}
-                          onEditTask={handleEditTask}
-                          goalColor={selectedGoal.color}
-                          isCompleted={true}
-                        />
-                      ))}
-                      {provided.placeholder}
-                    </ul>
-                  )}
-                </Droppable>
-              </>
-            )}
-          </div>
-        </DragDropContext>
+                    ))}
+                    {provided.placeholder}
+                  </ul>
+                )}
+              </Droppable>
+            </>
+          )}
+        </div>
       )}
       
       {isModalOpen && (

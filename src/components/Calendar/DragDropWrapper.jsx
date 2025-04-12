@@ -1,15 +1,18 @@
 import React from 'react';
-import { DragDropContext } from '@hello-pangea/dnd';
+import { DragDropContext } from '../DndContext';
 
-// Modernized DragDropWrapper component that avoids the defaultProps warning in memo components
-const DragDropWrapper = React.memo(({ children, onDragEnd }) => {
-  // Provide a default empty function to avoid undefined prop issues
-  // This addresses the defaultProps warning in memo components
+// Modernized DragDropWrapper component that avoids the defaultProps warning
+// Using React.forwardRef instead of React.memo for consistency
+const DragDropWrapper = React.forwardRef(({ children, onDragEnd = () => {} }, ref) => {
+  // Using our enhanced DragDropContext component that properly handles defaults
   return (
-    <DragDropContext onDragEnd={onDragEnd || (() => {})}>
+    <DragDropContext onDragEnd={onDragEnd}>
       {children}
     </DragDropContext>
   );
 });
+
+// Set display name for debugging
+DragDropWrapper.displayName = 'CalendarDragDropWrapper';
 
 export default DragDropWrapper;
