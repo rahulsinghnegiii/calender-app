@@ -4,8 +4,9 @@ services:
     name: calendar-app-backend
     env: node
     region: oregon # You can change this to the region closest to your users
-    buildCommand: npm run render-build
+    buildCommand: npm install && cd backend && npm install
     startCommand: cd backend && node server.js
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
@@ -13,6 +14,10 @@ services:
         value: 10000 # Render will use this port internally
       - key: MONGODB_URI
         sync: false # This will allow setting this secret from the Render dashboard
+      - key: MONGODB_CONNECTION_TIMEOUT
+        value: 60000
+      - key: REQUEST_TIMEOUT
+        value: 120000
     plan: free # Specify the pricing plan, 'free' is the default free tier
   
   # Frontend static site

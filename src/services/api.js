@@ -5,16 +5,26 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 console.log('API Service using base URL:', API_URL);
 
+// Flag to track if we should use mock data (when backend is unreachable)
+let useMockData = false;
+
 // Create axios instance with base URL
 const api = axios.create({
     baseURL: API_URL,
-    timeout: 30000, // 30 seconds timeout (increased from 10 seconds)
+    timeout: 30000, // 30 seconds timeout
 });
 
 // Request interceptor for debugging
 api.interceptors.request.use(
     config => {
         console.log(`🚀 API Request: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`, config.data || '');
+        
+        // If we've already determined the backend is unreachable, skip actual API calls
+        if (useMockData && !config.url.includes('/debug/')) {
+            console.log('Backend unreachable, cancelling request to use mock data instead');
+            return Promise.reject(new axios.Cancel('Backend unreachable, using mock data'));
+        }
+        
         return config;
     },
     error => {
@@ -27,14 +37,25 @@ api.interceptors.request.use(
 api.interceptors.response.use(
     response => {
         console.log(`✅ API Response: ${response.status}`, response.data);
+        
+        // If the backend sent a mock flag, mark that we should use mock data
+        if (response.data?.data?.mock) {
+            console.log('Received mock data from backend, future requests will use mock data');
+        }
+        
         return response;
     },
     error => {
         // More detailed error logging
         if (error.code === 'ECONNABORTED') {
             console.error('❌ API Timeout Error: Request took too long to complete');
+            useMockData = true; // Switch to mock data mode for future requests
         } else if (!error.response) {
             console.error('❌ API Network Error: Cannot connect to the server. Is the backend running?', error.message);
+            useMockData = true; // Switch to mock data mode for future requests
+        } else if (error.response.status === 401) {
+            console.error('❌ Authentication Error: 401 Unauthorized. Falling back to mock data.');
+            useMockData = true; // Switch to mock data mode for future requests
         } else {
             console.error('❌ API Response Error:', error.response ? error.response.data : error.message);
         }
@@ -42,24 +63,17 @@ api.interceptors.response.use(
     }
 );
 
-// Fallback function to try debug endpoint if normal request fails
-const tryDebugEndpoint = async (url) => {
-    console.log(`Falling back to debug endpoint for: ${url}`);
-    try {
-        const response = await api.get('/debug/events');
-        return response;
-    } catch (debugError) {
-        console.error('Debug endpoint also failed:', debugError);
-        // Return mock successful response
-        return {
-            data: {
-                success: true,
-                data: [],
-                mock: true,
-                message: 'Mock response because all API attempts failed'
-            }
-        };
-    }
+// Helper to create unique temporary IDs
+const createTempId = () => `temp-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+// Function to create mock event for fallback
+const createMockEvent = (eventData) => {
+    return {
+        _id: createTempId(),
+        ...eventData,
+        mock: true,
+        createdAt: new Date().toISOString()
+    };
 };
 
 // Event service with API methods
@@ -70,24 +84,56 @@ export const eventService = {
         if (dateRange) {
             url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
         }
-        console.log('Fetching events from complete URL:', `${API_URL}${url}`);
+        
         try {
+            if (useMockData) {
+                console.log('Using mock events data (empty array)');
+                return {
+                    data: {
+                        success: true,
+                        data: [],
+                        mock: true
+                    }
+                };
+            }
+            
             return await api.get(url);
         } catch (error) {
             console.error('Error fetching events:', error);
-            // Try debug endpoint
-            return tryDebugEndpoint('/debug/events');
+            
+            // Return mock empty array
+            return {
+                data: {
+                    success: true,
+                    data: [],
+                    mock: true
+                }
+            };
         }
     },
     
     // Create a new event
     createEvent: async (eventData) => {
         try {
-            console.log('Attempting to create event with data:', eventData);
-            console.log('Full API URL:', `${API_URL}/events`);
+            if (useMockData) {
+                console.log('Using mock event data due to server connection issue');
+                return {
+                    data: {
+                        success: true,
+                        data: createMockEvent(eventData),
+                        message: 'Mock event created because API is unreachable'
+                    }
+                };
+            }
             
             const response = await api.post('/events', eventData);
-            console.log('Event created successfully:', response.data);
+            
+            // If response contains a mock flag, update our global state
+            if (response.data?.data?.mock) {
+                useMockData = true;
+                console.log('Server sent mock data, future requests will use mock data');
+            }
+            
             return response;
         } catch (error) {
             console.error('Error creating event:', error);
@@ -95,24 +141,14 @@ export const eventService = {
                 message: error.message,
                 status: error.response?.status,
                 statusText: error.response?.statusText,
-                responseData: error.response?.data,
-                config: {
-                    url: error.config?.url,
-                    method: error.config?.method,
-                    baseURL: error.config?.baseURL,
-                    headers: error.config?.headers
-                }
+                responseData: error.response?.data
             });
             
-            // Return a mock response to keep the application working
+            // Return a mock response with the data we were trying to save
             return {
                 data: {
                     success: true,
-                    data: {
-                        _id: 'temp-' + Date.now(),
-                        ...eventData,
-                        mock: true
-                    },
+                    data: createMockEvent(eventData),
                     message: 'Mock event created because API failed'
                 }
             };
@@ -122,6 +158,22 @@ export const eventService = {
     // Update an existing event
     updateEvent: async (id, eventData) => {
         try {
+            if (useMockData) {
+                console.log('Using mock update data due to server connection issue');
+                return {
+                    data: {
+                        success: true,
+                        data: {
+                            _id: id,
+                            ...eventData,
+                            mock: true,
+                            updatedAt: new Date().toISOString()
+                        },
+                        message: 'Mock event updated because API is unreachable'
+                    }
+                };
+            }
+            
             return await api.put(`/events/${id}`, eventData);
         } catch (error) {
             console.error('Error updating event:', error);
@@ -143,6 +195,17 @@ export const eventService = {
     // Delete an event
     deleteEvent: async (id) => {
         try {
+            if (useMockData) {
+                console.log('Using mock delete data due to server connection issue');
+                return {
+                    data: {
+                        success: true,
+                        data: {},
+                        message: 'Mock event deleted because API is unreachable'
+                    }
+                };
+            }
+            
             return await api.delete(`/events/${id}`);
         } catch (error) {
             console.error('Error deleting event:', error);

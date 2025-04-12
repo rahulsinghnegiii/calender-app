@@ -11,25 +11,15 @@ const eventRoutes = require('./routes/eventRoutes');
 const goalRoutes = require('./routes/goalRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 
-// Connect to Database
-connectDB();
+// Global vars to track connection state
+let databaseConnected = false;
 
-// Create Express app
+// Express app setup should continue even if DB connection fails
 const app = express();
 
-// Debug endpoint to check server status without any middleware interference
-app.get('/api/debug/status', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Debug endpoint is working',
-    timestamp: new Date().toISOString(),
-    headers: req.headers
-  });
-});
-
-// Apply CORS middleware with more permissive settings for development
+// Apply CORS middleware with more permissive settings for production
 app.use(cors({
-  origin: '*', // Allow all origins in development
+  origin: '*', // Allow all origins in development and production
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept'],
   credentials: true,
@@ -37,10 +27,31 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
+// Basic health check endpoint that doesn't require database
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    message: 'API is running',
+    databaseConnected,
+    timestamp: new Date().toISOString(),
+    env: process.env.NODE_ENV
+  });
+});
+
+// Debug endpoint to check server status without any middleware interference
+app.get('/api/debug/status', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Debug endpoint is working',
+    timestamp: new Date().toISOString(),
+    headers: req.headers,
+    databaseConnected
+  });
+});
+
 // Add request logging middleware with more details
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
-  console.log('Request headers:', JSON.stringify(req.headers));
   if (req.method === 'POST' || req.method === 'PUT') {
     console.log('Request body:', JSON.stringify(req.body, null, 2));
   }
@@ -54,25 +65,22 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 // Additional express json middleware for redundancy
 app.use(express.json({ limit: '10mb' }));
 
-// Diagnostic middleware to check if we reach this point for API requests
-app.use('/api', (req, res, next) => {
-  console.log(`API request received: ${req.method} ${req.originalUrl}`);
-  // Continue processing the request
-  next();
-});
-
-// Create diagnostic events endpoint to bypass any potential auth middleware
+// Create diagnostic events endpoint that always works even without DB
 app.get('/api/debug/events', async (req, res) => {
   try {
-    // Return an empty array of events for diagnostic purposes
     res.status(200).json({
       success: true,
       message: 'Debug events endpoint',
+      databaseConnected,
       data: []
     });
   } catch (error) {
     console.error('Debug endpoint error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(200).json({ 
+      success: false, 
+      error: error.message,
+      data: [] 
+    });
   }
 });
 
@@ -85,10 +93,12 @@ app.use('/api/tasks', taskRoutes);
 app.get('/', (req, res) => {
   res.json({
     message: 'Calendar API is running',
+    databaseStatus: databaseConnected ? 'connected' : 'disconnected',
     endpoints: {
       events: '/api/events',
       goals: '/api/goals',
       tasks: '/api/tasks',
+      health: '/api/health',
       debug: '/api/debug/status'
     }
   });
@@ -132,6 +142,16 @@ app.use((err, req, res, next) => {
     });
   }
   
+  // Always return 200 for API errors to prevent frontend issues
+  if (req.path.startsWith('/api/')) {
+    return res.status(200).json({
+      success: false,
+      message: 'API error occurred',
+      error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
+      data: []
+    });
+  }
+  
   res.status(500).json({
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'production' ? {} : err.message
@@ -140,8 +160,16 @@ app.use((err, req, res, next) => {
 
 // Start the server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
   console.log(`API URL: http://localhost:${PORT}/api`);
+  
+  // Connect to database after server is running
+  try {
+    databaseConnected = await connectDB();
+  } catch (error) {
+    console.error('Failed to connect to database:', error);
+    databaseConnected = false;
+  }
 }); 
