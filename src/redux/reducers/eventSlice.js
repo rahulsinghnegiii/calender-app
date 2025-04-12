@@ -23,6 +23,12 @@ export const createEvent = createAsyncThunk(
   async (eventData, { rejectWithValue }) => {
     try {
       const response = await eventService.createEvent(eventData);
+      
+      // Check if this is a mock response (server connection failed)
+      if (response.data.data.mock) {
+        console.log('Using mock event data due to server connection issue');
+      }
+      
       return response.data.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || { error: 'Failed to create event' });
@@ -94,6 +100,13 @@ const eventSlice = createSlice({
       })
       .addCase(createEvent.fulfilled, (state, action) => {
         state.isLoading = false;
+        
+        // Check if the event is a mock (temporary) one
+        if (action.payload.mock) {
+          // Add a flag to indicate this is a temporary event
+          action.payload.temporary = true;
+        }
+        
         state.events.push(action.payload);
       })
       .addCase(createEvent.rejected, (state, action) => {

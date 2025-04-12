@@ -83,9 +83,27 @@ export const eventService = {
     // Create a new event
     createEvent: async (eventData) => {
         try {
-            return await api.post('/events', eventData);
+            console.log('Attempting to create event with data:', eventData);
+            console.log('Full API URL:', `${API_URL}/events`);
+            
+            const response = await api.post('/events', eventData);
+            console.log('Event created successfully:', response.data);
+            return response;
         } catch (error) {
             console.error('Error creating event:', error);
+            console.error('Error details:', {
+                message: error.message,
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                responseData: error.response?.data,
+                config: {
+                    url: error.config?.url,
+                    method: error.config?.method,
+                    baseURL: error.config?.baseURL,
+                    headers: error.config?.headers
+                }
+            });
+            
             // Return a mock response to keep the application working
             return {
                 data: {

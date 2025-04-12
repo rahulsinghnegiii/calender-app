@@ -10,6 +10,8 @@ import { getEventCategories } from '../../utils/eventUtils';
 const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
   const dispatch = useDispatch();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [createdEvent, setCreatedEvent] = useState(null);
   const categories = getEventCategories();
   
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
@@ -106,6 +108,7 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
   // Handle form submission
   const onSubmit = (data) => {
     setIsSubmitting(true);
+    setErrorMessage('');
     console.log('Form data:', data);
     
     try {
@@ -161,20 +164,37 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
           eventData
         }))
           .unwrap()
-          .then(() => {
+          .then((result) => {
+            console.log('Update result:', result);
             setIsSubmitting(false);
-            onClose();
+            setCreatedEvent(result);
+            
+            // Check if it's a mock response
+            if (result && result.mock) {
+              setErrorMessage('Warning: Event updated locally only. Server connection issue detected.');
+            }
+            
+            // Close the modal after a short delay to show success message
+            setTimeout(onClose, 1500);
           })
           .catch((error) => {
             console.error('Failed to update event:', error);
             setIsSubmitting(false);
+            setErrorMessage(`Failed to update event: ${error.message || 'Unknown error'}`);
           });
       } else {
         // Create new event
         dispatch(createEvent(eventData))
           .unwrap()
-          .then(() => {
+          .then((result) => {
+            console.log('Create result:', result);
             setIsSubmitting(false);
+            setCreatedEvent(result);
+            
+            // Check if it's a mock response
+            if (result && result.mock) {
+              setErrorMessage('Warning: Event created locally only. Server connection issue detected.');
+            }
             
             // If this event was created from a task, mark the task as completed
             if (data._taskId) {
@@ -185,16 +205,19 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
                 });
             }
             
-            onClose();
+            // Close the modal after a short delay to show success message
+            setTimeout(onClose, 1500);
           })
           .catch((error) => {
             console.error('Failed to create event:', error);
             setIsSubmitting(false);
+            setErrorMessage(`Failed to create event: ${error.message || 'Unknown error'}`);
           });
       }
     } catch (error) {
       console.error('Error processing form data:', error);
       setIsSubmitting(false);
+      setErrorMessage(`Error processing form data: ${error.message}`);
     }
   };
 
@@ -236,6 +259,20 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
           <h3 className="text-lg leading-6 font-medium text-gray-900">
             {selectedEvent ? 'Edit Event' : 'Create Event'}
           </h3>
+          
+          {/* Error message */}
+          {errorMessage && (
+            <div className="mt-2 p-2 bg-red-100 text-red-700 rounded text-sm">
+              {errorMessage}
+            </div>
+          )}
+          
+          {/* Success message */}
+          {createdEvent && !errorMessage && (
+            <div className="mt-2 p-2 bg-green-100 text-green-700 rounded text-sm">
+              Event {selectedEvent ? 'updated' : 'created'} successfully!
+            </div>
+          )}
           
           <form className="mt-4" onSubmit={handleSubmit(onSubmit)}>
             {/* Title Input */}
@@ -325,17 +362,17 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
               {selectedEvent && (
                 <button
                   type="button"
-                  className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                  className="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
                   onClick={handleDelete}
                   disabled={isSubmitting}
                 >
                   Delete
                 </button>
               )}
-              <div className="flex space-x-2 ml-auto">
+              <div className={`${selectedEvent ? '' : 'ml-auto'} flex items-center space-x-2`}>
                 <button
                   type="button"
-                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
                   onClick={onClose}
                   disabled={isSubmitting}
                 >
@@ -343,10 +380,20 @@ const EventModal = ({ isOpen, onClose, selectedSlot, selectedEvent }) => {
                 </button>
                 <button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Saving...' : (selectedEvent ? 'Update' : 'Create')}
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                      </svg>
+                      {selectedEvent ? 'Updating...' : 'Creating...'}
+                    </>
+                  ) : (
+                    selectedEvent ? 'Update Event' : 'Create Event'
+                  )}
                 </button>
               </div>
             </div>

@@ -763,12 +763,12 @@ const CustomWeeklyCalendar = ({ currentDate, onDateChange, onModalOpen, currentV
     };
     
     // Dispatch the update
-    dispatch(updateEvent({
-      id: event._id,
-      eventData: updatedEvent
+    dispatch(updateEvent({ 
+      id: event._id, 
+      eventData: updatedEvent 
     }));
   };
-  
+
   // Helper function to map goal color to an event category
   const mapGoalCategoryToEventCategory = (goalColor) => {
     // Map color to category - this can be customized based on your app's color scheme

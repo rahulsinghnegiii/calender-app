@@ -27,24 +27,9 @@ app.get('/api/debug/status', (req, res) => {
   });
 });
 
-// Improved CORS configuration
-const allowedOrigins = [
-  // Local development
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:5000',
-  // Render domains
-  'https://calendar-app-frontend-qscz.onrender.com',
-  'https://calendar-app-backend.onrender.com',
-  // Allow requests from any subdomain of onrender.com
-  /\.onrender\.com$/,
-  // Allow all origins in development
-  '*'
-];
-
-// Apply CORS middleware with more permissive settings to overcome Render issues
+// Apply CORS middleware with more permissive settings for development
 app.use(cors({
-  origin: '*', // Temporarily allow all origins to debug
+  origin: '*', // Allow all origins in development
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept'],
   credentials: true,
@@ -52,16 +37,22 @@ app.use(cors({
   optionsSuccessStatus: 204
 }));
 
-// Add request logging middleware
+// Add request logging middleware with more details
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl} - Origin: ${req.headers.origin || 'unknown'}`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
   console.log('Request headers:', JSON.stringify(req.headers));
+  if (req.method === 'POST' || req.method === 'PUT') {
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+  }
   next();
 });
 
-// Middleware
-app.use(bodyParser.json());
-app.use(express.json());
+// Configure body-parser middleware before route handlers
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+
+// Additional express json middleware for redundancy
+app.use(express.json({ limit: '10mb' }));
 
 // Diagnostic middleware to check if we reach this point for API requests
 app.use('/api', (req, res, next) => {
