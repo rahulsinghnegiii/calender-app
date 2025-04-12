@@ -3,28 +3,23 @@ services:
   - type: web
     name: calendar-app-backend
     env: node
-    region: oregon # You can change this to the region closest to your users
+    region: oregon
     buildCommand: npm install && cd backend && npm install
     startCommand: cd backend && node server.js
     healthCheckPath: /api/health
-    # Increase the service's resources for better performance
-    autoscaling:
-      min: 1
-      max: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000 # Render will use this port internally
+        value: 10000
       - key: MONGODB_URI
-        sync: false # This will allow setting this secret from the Render dashboard
+        sync: false
       - key: MONGODB_CONNECTION_TIMEOUT
         value: 120000
       - key: MONGODB_SOCKET_TIMEOUT
         value: 120000
       - key: REQUEST_TIMEOUT
         value: 120000
-    plan: free # Specify the pricing plan, 'free' is the default free tier
   
   # Frontend static site
   - type: web
@@ -39,16 +34,12 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://calendar-app-backend.onrender.com/api
-    # plan: free - removed as it's no longer a valid option 
   
   # Ping service to prevent backend from sleeping
-  - type: worker
+  - type: cron
     name: calendar-app-ping-service
     env: node
     region: oregon
-    buildCommand: npm install && cd backend && npm install
-    startCommand: cd backend && node ping.js
-    envVars:
-      - key: BACKEND_URL
-        value: https://calendar-app-backend.onrender.com
-    plan: free 
+    schedule: "*/14 * * * *"
+    buildCommand: npm install
+    startCommand: curl -sS https://calendar-app-backend.onrender.com/api/health 

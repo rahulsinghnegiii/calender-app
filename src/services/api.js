@@ -13,7 +13,7 @@ let isFirstRequest = true;
 
 // Create axios instance with much higher timeout for first request to handle cold starts
 const api = axios.create({
-    baseURL: API_URL,
+  baseURL: API_URL,
     timeout: isFirstRequest ? 90000 : 30000, // 90 seconds for first request, 30 seconds for subsequent requests
 });
 
@@ -143,11 +143,11 @@ const notifyUserAboutBackendStatus = () => {
 // Event service with API methods
 export const eventService = {
     // Get all events (with optional date range filter)
-    getEvents: async (dateRange) => {
-        let url = '/events';
-        if (dateRange) {
-            url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
-        }
+  getEvents: async (dateRange) => {
+      let url = '/events';
+      if (dateRange) {
+        url += `?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`;
+      }
         
         try {
             if (useMockData) {
@@ -164,7 +164,7 @@ export const eventService = {
             }
             
             return await api.get(url);
-        } catch (error) {
+    } catch (error) {
             console.error('Error fetching events:', error);
             
             // Show notification to user
@@ -178,12 +178,12 @@ export const eventService = {
                     mock: true
                 }
             };
-        }
-    },
-    
-    // Create a new event
-    createEvent: async (eventData) => {
-        try {
+    }
+  },
+
+  // Create a new event
+  createEvent: async (eventData) => {
+    try {
             if (useMockData) {
                 console.log('Using mock event data due to server connection issue');
                 // Show notification to user
@@ -197,7 +197,7 @@ export const eventService = {
                 };
             }
             
-            const response = await api.post('/events', eventData);
+      const response = await api.post('/events', eventData);
             
             // If response contains a mock flag, update our global state
             if (response.data?.data?.mock) {
@@ -208,7 +208,7 @@ export const eventService = {
             }
             
             return response;
-        } catch (error) {
+    } catch (error) {
             console.error('Error creating event:', error);
             // Show notification to user
             notifyUserAboutBackendStatus();
@@ -225,8 +225,8 @@ export const eventService = {
     },
     
     // Update an existing event
-    updateEvent: async (id, eventData) => {
-        try {
+  updateEvent: async (id, eventData) => {
+    try {
             if (useMockData) {
                 console.log('Using mock update data due to server connection issue');
                 return {
@@ -244,7 +244,7 @@ export const eventService = {
             }
             
             return await api.put(`/events/${id}`, eventData);
-        } catch (error) {
+    } catch (error) {
             console.error('Error updating event:', error);
             // Return a mock response to keep the application working
             return {
@@ -258,12 +258,12 @@ export const eventService = {
                     message: 'Mock event updated because API failed'
                 }
             };
-        }
-    },
-    
-    // Delete an event
-    deleteEvent: async (id) => {
-        try {
+    }
+  },
+
+  // Delete an event
+  deleteEvent: async (id) => {
+    try {
             if (useMockData) {
                 console.log('Using mock delete data due to server connection issue');
                 return {
@@ -340,7 +340,7 @@ export const goalService = {
             }
             
             return await api.get(`/goals/${goalId}/tasks`);
-        } catch (error) {
+    } catch (error) {
             console.error('Error fetching goal tasks:', error);
             
             // Return mock tasks for this goal
